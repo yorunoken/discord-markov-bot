@@ -48,3 +48,21 @@ pub async fn generate_markov_message(guild_id: GuildId, channel_id: ChannelId) -
 
     CreateMessage::new().content(content)
 }
+
+pub async fn get_most_popular_channel(guild_id: GuildId) -> u64 {
+    let channel_id: u64 = tokio::task::spawn_blocking(move || {
+        let conn = Connection::open("messages.db").expect("Unable to open database");
+
+        let mut stmt = conn
+            .prepare("SELECT channel_id FROM messages WHERE guild_id = ?1 GROUP BY channel_id ORDER BY COUNT(*) DESC LIMIT 1;")
+            .unwrap();
+
+        let channel_id_result: u64 = stmt.query_row(params![guild_id.get()], |row| row.get(0)).unwrap_or(0);
+
+        channel_id_result
+    })
+    .await
+    .unwrap();
+
+    channel_id
+}
