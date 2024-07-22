@@ -1,4 +1,3 @@
-use rand::prelude::IteratorRandom;
 use rand::seq::SliceRandom;
 
 use std::collections::HashMap;
