@@ -101,7 +101,7 @@ impl EventHandler for Handler {
         if !sentence.contains(format!("<@{}>", ctx.cache.current_user().id).as_str()) {
             let conn = Connection::open("messages.db").expect("Unable to open database");
             conn.execute(
-                "INSERT INTO messages (sentence, channel_id, guild_id, message_id, author_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT INTO messages (content, channel_id, guild_id, message_id, author_id) VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![sentence, msg.channel_id.get(), guild_id.get(), msg.id.get(), msg.author.id.get()],
             )
             .expect("Failed to insert word into database");

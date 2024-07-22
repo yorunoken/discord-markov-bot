@@ -17,7 +17,7 @@ pub async fn generate_markov_message(
 
         let mut stmt = conn
             .prepare(
-                "SELECT sentence FROM messages WHERE guild_id = ?1 AND channel_id = ?2 LIMIT ?3;",
+                "SELECT content FROM messages WHERE guild_id = ?1 AND channel_id = ?2 LIMIT ?3;",
             )
             .unwrap();
 

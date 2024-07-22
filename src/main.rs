@@ -20,7 +20,7 @@ async fn main() {
         author_id INTEGER NOT NULL,
         channel_id INTEGER NOT NULL,
         guild_id INTEGER NOT NULL,
-        sentence TEXT NOT NULL
+        content TEXT NOT NULL
         );";
     conn.execute(sql, []).expect("Failed to create table");
 
