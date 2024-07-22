@@ -24,7 +24,9 @@ impl EventHandler for Handler {
                 // Fetch vector of guilds the bot is in.
                 let guild_ids = ctx.cache.guilds();
 
+                // Loop over the guild ids
                 for guild_id in guild_ids {
+                    // Get the channel id of the most popular channel
                     let popular_channel_id = get_most_popular_channel(guild_id).await;
                     let all_channels = ctx.http.get_channels(guild_id).await.unwrap();
                     let channel_id = all_channels
@@ -33,6 +35,7 @@ impl EventHandler for Handler {
                         .map(|channel| channel.id)
                         .unwrap();
 
+                    // Fetch the channel
                     let channel = ctx.http.get_channel(channel_id).await.unwrap();
 
                     match channel.guild() {
@@ -66,22 +69,16 @@ impl EventHandler for Handler {
         }
 
         if msg.mentions_me(&ctx.http).await.unwrap_or(false) {
-            match generate_markov_message(guild_id, msg.channel_id).await {
-                Some(builder) => msg
-                    .channel_id
-                    .send_message(&ctx.http, builder)
-                    .await
-                    .unwrap(),
-                None => msg
-                    .channel_id
-                    .send_message(
-                        &ctx.http,
-                        CreateMessage::new()
-                            .content("Please wait until this channel has over 500 messages."),
-                    )
-                    .await
-                    .unwrap(),
+            let builder = match generate_markov_message(guild_id, msg.channel_id).await {
+                Some(s) => s,
+                None => CreateMessage::new()
+                    .content("Please wait until this channel has over 500 messages."),
             };
+
+            msg.channel_id
+                .send_message(&ctx.http, builder)
+                .await
+                .unwrap();
             return;
         }
 
