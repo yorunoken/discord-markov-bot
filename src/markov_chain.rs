@@ -15,27 +15,37 @@ impl Chain {
         }
     }
 
+    /// Trains the chain using a vector of strings
     pub fn train(&mut self, sentences: Vec<String>) {
+        // Loop over the sentences
         for sentence in sentences {
+            // Split the sentence into its words
             let words: Vec<&str> = sentence.split_whitespace().collect();
+            // Loop over the words with `windows`, so ["word1", "word2", "word3"]
+            // will return ["word1", "word2"], and ["word2", "word3"]
             for window in words.windows(2) {
-                if window.len() == 2 {
-                    let key = window[0].to_string();
-                    let value = window[1].to_string();
-                    self.chains.entry(key).or_insert_with(Vec::new).push(value);
+                // Make sure window has two elements
+                if let [first, second] = window {
+                    self.chains
+                        .entry(first.to_string())
+                        .or_insert_with(Vec::new)
+                        .push(second.to_string());
                 }
             }
         }
     }
 
     pub fn generate(&self, word_limit: usize) -> String {
+        // Initiate the random number generator
         let mut rng = rand::thread_rng();
         let mut sentence = Vec::new();
+        // Pick a random word from the chains
         let mut current_word = match self.chains.keys().choose(&mut rng) {
-            Some(word) => word.clone(),
+            Some(word) => word.to_string(),
             None => return String::new(),
         };
 
+        // Loop over the word_limit
         for _ in 0..word_limit {
             sentence.push(current_word.clone());
             let next_words = self.chains.get(&current_word);

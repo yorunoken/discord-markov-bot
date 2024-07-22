@@ -8,8 +8,6 @@ use serenity::prelude::*;
 
 use crate::markov_chain::Chain;
 
-const DATABASE_MESSAGE_FETCH_LIMIT: usize = 2000;
-
 pub struct Handler {}
 
 #[async_trait]
@@ -30,17 +28,23 @@ impl EventHandler for Handler {
 
         let conn = Connection::open("messages.db").expect("Unable to open database");
 
-        let mut response = "".to_string();
+        const DATABASE_MESSAGE_FETCH_LIMIT: usize = 2000;
+
+        let mut response = String::from("");
         if msg.mentions_me(&ctx.http).await.unwrap_or(false) {
             let mut rng = rand::thread_rng();
 
             let mut stmt = conn
-                .prepare("SELECT sentence FROM messages WHERE guild_id = ?1 LIMIT ?2;")
+                .prepare("SELECT sentence FROM messages WHERE guild_id = ?1 AND channel_id = ?2 LIMIT ?3;")
                 .unwrap();
 
             let sentences_iter = stmt
                 .query_map(
-                    params![guild_id.get(), DATABASE_MESSAGE_FETCH_LIMIT],
+                    params![
+                        guild_id.get(),
+                        msg.channel_id.get(),
+                        DATABASE_MESSAGE_FETCH_LIMIT
+                    ],
                     |row| row.get(0),
                 )
                 .unwrap();
@@ -48,6 +52,12 @@ impl EventHandler for Handler {
             let mut sentences: Vec<String> = Vec::new();
             for sentence_result in sentences_iter {
                 sentences.push(sentence_result.unwrap());
+            }
+
+            if sentences.len() <= 1000 {
+                response =
+                    String::from("The chat must have 1000+ messages for me to generate messages.");
+                return;
             }
 
             println!("{:#?}", sentences);
@@ -64,8 +74,8 @@ impl EventHandler for Handler {
             return;
         }
 
-        let sentence = msg.content;
         // Only save to database if message doesn't contain bot user tag
+        let sentence = msg.content;
         if !sentence.contains(format!("<@{}>", ctx.cache.current_user().id).as_str()) {
             conn.execute(
                 "INSERT INTO messages (sentence, channel_id, guild_id, message_id, author_id) VALUES (?1, ?2, ?3, ?4, ?5)",
