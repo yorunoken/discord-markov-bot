@@ -1,3 +1,4 @@
+use rand::prelude::IteratorRandom;
 use rand::seq::SliceRandom;
 
 use std::collections::HashMap;
@@ -5,14 +6,12 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct Chain {
     chains: HashMap<String, Vec<String>>,
-    first_words: Vec<String>,
 }
 
 impl Chain {
     pub fn new() -> Self {
         Chain {
             chains: HashMap::new(),
-            first_words: Vec::new(),
         }
     }
 
@@ -22,8 +21,6 @@ impl Chain {
         for sentence in sentences {
             // Split the sentence into its words
             let words: Vec<&str> = sentence.split_whitespace().collect();
-            self.first_words.push(words[0].to_string());
-
             // Loop over the words with `windows`, so ["word1", "word2", "word3"]
             // will return ["word1", "word2"], and ["word2", "word3"]
             for window in words.windows(2) {
@@ -43,7 +40,7 @@ impl Chain {
         let mut rng = rand::thread_rng();
         let mut sentence = Vec::new();
         // Pick a random word from the chains
-        let mut current_word = match self.first_words.choose(&mut rng) {
+        let mut current_word = match self.chains.keys().choose(&mut rng) {
             Some(word) => word.to_string(),
             None => return String::new(),
         };
