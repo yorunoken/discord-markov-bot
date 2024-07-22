@@ -1,14 +1,13 @@
 use rand::Rng;
 use rusqlite::{params, Connection};
 
-use serenity::prelude::*;
-use serenity::{all::GuildId, model::channel::Message};
+use serenity::all::GuildId;
+use serenity::all::{ChannelId, CreateMessage};
 
 use crate::markov_chain::Chain;
 
-pub async fn send_markov_message(ctx: &Context, msg: &Message, guild_id: GuildId) {
+pub async fn generate_markov_message(guild_id: GuildId, channel_id: ChannelId) -> CreateMessage {
     const DATABASE_MESSAGE_FETCH_LIMIT: usize = 2000;
-    let channel_id = msg.channel_id;
 
     let sentences: Vec<String> = tokio::task::spawn_blocking(move || {
         let conn = Connection::open("messages.db").expect("Unable to open database");
@@ -35,7 +34,7 @@ pub async fn send_markov_message(ctx: &Context, msg: &Message, guild_id: GuildId
     .await
     .unwrap();
 
-    let response = match sentences.len() >= 500 {
+    let content = match sentences.len() >= 500 {
         true => {
             let mut rng = rand::thread_rng();
             let mut markov_chain = Chain::new();
@@ -47,5 +46,5 @@ pub async fn send_markov_message(ctx: &Context, msg: &Message, guild_id: GuildId
         false => String::from("The chat must have 500+ messages for me to generate messages."),
     };
 
-    msg.channel_id.say(&ctx.http, response).await;
+    CreateMessage::new().content(content)
 }
