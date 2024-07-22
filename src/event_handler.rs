@@ -40,11 +40,25 @@ impl EventHandler for Handler {
 
                     match channel.guild() {
                         Some(channel) => {
+                            let last_message_is_from_bot =
+                                if let Some(message_id) = channel.last_message_id {
+                                    let message = channel
+                                        .message(&ctx.http, message_id)
+                                        .await
+                                        .expect("Bot dosn't have permissions");
+
+                                    message.author.id.get() == ctx.cache.current_user().id.get()
+                                } else {
+                                    false
+                                };
+
                             // Only send a message if builder is not None
                             if let Some(builder) =
                                 generate_markov_message(guild_id, channel.id).await
                             {
-                                channel.send_message(&ctx.http, builder).await.unwrap();
+                                if !last_message_is_from_bot {
+                                    channel.send_message(&ctx.http, builder).await.unwrap();
+                                }
                             }
                         }
                         None => {}
