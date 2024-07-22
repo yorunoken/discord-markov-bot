@@ -5,6 +5,7 @@ use std::env;
 
 mod event_handler;
 mod markov_chain;
+mod utils;
 
 #[tokio::main]
 async fn main() {
