@@ -4,7 +4,7 @@ use rusqlite::{params, Connection};
 use serenity::all::GuildId;
 use serenity::all::{ChannelId, CreateMessage};
 
-use crate::markov_chain::Chain;
+use crate::markov_chain;
 
 pub async fn generate_markov_message(
     guild_id: GuildId,
@@ -42,12 +42,12 @@ pub async fn generate_markov_message(
     }
 
     let mut rng = rand::thread_rng();
-    let mut markov_chain = Chain::new();
+
+    let mut markov_chain = markov_chain::Chain::new();
     markov_chain.train(sentences);
 
     let max_words = rng.gen_range(1..15);
     let content = markov_chain.generate(max_words);
-
     Some(CreateMessage::new().content(content))
 }
 
