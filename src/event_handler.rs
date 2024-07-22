@@ -54,19 +54,18 @@ impl EventHandler for Handler {
                 sentences.push(sentence_result.unwrap());
             }
 
-            if sentences.len() <= 1000 {
-                response =
-                    String::from("The chat must have 1000+ messages for me to generate messages.");
-                return;
-            }
+            response = match sentences.len() >= 1000 {
+                true => {
+                    let mut markov_chain = Chain::new();
+                    markov_chain.train(sentences);
 
-            println!("{:#?}", sentences);
-
-            let mut markov_chain = Chain::new();
-            markov_chain.train(sentences);
-
-            let max_words = rng.gen_range(1..15);
-            response = markov_chain.generate(max_words);
+                    let max_words = rng.gen_range(1..15);
+                    markov_chain.generate(max_words)
+                }
+                false => {
+                    String::from("The chat must have 1000+ messages for me to generate messages.")
+                }
+            };
         }
 
         if !response.is_empty() {
