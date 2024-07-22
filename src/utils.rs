@@ -6,7 +6,10 @@ use serenity::all::{ChannelId, CreateMessage};
 
 use crate::markov_chain::Chain;
 
-pub async fn generate_markov_message(guild_id: GuildId, channel_id: ChannelId) -> CreateMessage {
+pub async fn generate_markov_message(
+    guild_id: GuildId,
+    channel_id: ChannelId,
+) -> Option<CreateMessage> {
     const DATABASE_MESSAGE_FETCH_LIMIT: usize = 2000;
 
     let sentences: Vec<String> = tokio::task::spawn_blocking(move || {
@@ -34,19 +37,18 @@ pub async fn generate_markov_message(guild_id: GuildId, channel_id: ChannelId) -
     .await
     .unwrap();
 
-    let content = match sentences.len() >= 500 {
-        true => {
-            let mut rng = rand::thread_rng();
-            let mut markov_chain = Chain::new();
-            markov_chain.train(sentences);
+    if sentences.len() < 500 {
+        return None;
+    }
 
-            let max_words = rng.gen_range(1..15);
-            markov_chain.generate(max_words)
-        }
-        false => String::from("The chat must have 500+ messages for me to generate messages."),
-    };
+    let mut rng = rand::thread_rng();
+    let mut markov_chain = Chain::new();
+    markov_chain.train(sentences);
 
-    CreateMessage::new().content(content)
+    let max_words = rng.gen_range(1..15);
+    let content = markov_chain.generate(max_words);
+
+    Some(CreateMessage::new().content(content))
 }
 
 pub async fn get_most_popular_channel(guild_id: GuildId) -> u64 {

@@ -4,10 +4,10 @@ use tokio::time::Duration;
 use rand::Rng;
 use rusqlite::{params, Connection};
 
-use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
+use serenity::{all::CreateMessage, async_trait};
 
 use crate::utils::{generate_markov_message, get_most_popular_channel};
 
@@ -19,7 +19,6 @@ impl EventHandler for Handler {
         println!("Bot has started as {}", bot.user.name);
 
         let mut rng = OsRng;
-        println!("started loop");
         tokio::spawn(async move {
             loop {
                 // Fetch vector of guilds the bot is in.
@@ -38,15 +37,19 @@ impl EventHandler for Handler {
 
                     match channel.guild() {
                         Some(channel) => {
-                            let builder = generate_markov_message(guild_id, channel.id).await;
-                            channel.send_message(&ctx.http, builder).await.unwrap();
+                            // Only send a message if builder is not None
+                            if let Some(builder) =
+                                generate_markov_message(guild_id, channel.id).await
+                            {
+                                channel.send_message(&ctx.http, builder).await.unwrap();
+                            }
                         }
                         None => {}
                     }
                 }
 
-                // Wait a random second from 60 to 270
-                let range = rng.gen_range(60..270);
+                // Wait a random second from 300 to 900
+                let range = rng.gen_range(300..900);
                 tokio::time::sleep(Duration::from_secs(range)).await;
             }
         });
@@ -63,11 +66,22 @@ impl EventHandler for Handler {
         }
 
         if msg.mentions_me(&ctx.http).await.unwrap_or(false) {
-            let builder = generate_markov_message(guild_id, msg.channel_id).await;
-            msg.channel_id
-                .send_message(&ctx.http, builder)
-                .await
-                .unwrap();
+            match generate_markov_message(guild_id, msg.channel_id).await {
+                Some(builder) => msg
+                    .channel_id
+                    .send_message(&ctx.http, builder)
+                    .await
+                    .unwrap(),
+                None => msg
+                    .channel_id
+                    .send_message(
+                        &ctx.http,
+                        CreateMessage::new()
+                            .content("Please wait until this channel has over 500 messages."),
+                    )
+                    .await
+                    .unwrap(),
+            };
             return;
         }
 
