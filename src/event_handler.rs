@@ -1,4 +1,5 @@
 use rand::rngs::OsRng;
+use serenity::builder::GetMessages;
 use tokio::time::Duration;
 
 use rand::Rng;
@@ -40,23 +41,23 @@ impl EventHandler for Handler {
 
                     match channel.guild() {
                         Some(channel) => {
-                            let last_message_is_from_bot =
-                                if let Some(message_id) = channel.last_message_id {
-                                    let message = channel
-                                        .message(&ctx.http, message_id)
-                                        .await
-                                        .expect("Bot dosn't have permissions");
+                            let messages = channel
+                                .messages(&ctx.http, GetMessages::new().limit(100))
+                                .await
+                                .unwrap();
 
-                                    message.author.id.get() == ctx.cache.current_user().id.get()
-                                } else {
-                                    false
-                                };
+                            let mut messages_have_bot = false;
+                            for message in messages {
+                                if message.author.id.get() == ctx.cache.current_user().id.get() {
+                                    messages_have_bot = true;
+                                }
+                            }
 
                             // Only send a message if builder is not None
                             if let Some(builder) =
                                 generate_markov_message(guild_id, channel.id).await
                             {
-                                if !last_message_is_from_bot {
+                                if !messages_have_bot {
                                     channel.send_message(&ctx.http, builder).await.unwrap();
                                 }
                             }
