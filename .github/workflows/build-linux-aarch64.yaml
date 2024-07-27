@@ -1,0 +1,37 @@
+name: Linux build for aarch64
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Install Rust
+              uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: stable # can change for nightly
+                  override: true
+
+            - name: Install aarch64 target
+              run: rustup target add aarch64-unknown-linux-gnu
+
+            - name: Install dependencies
+              run: sudo apt-get install -y gcc-aarch64-linux-gnu
+
+            - name: Build for aarch64
+              run: cargo build --release --target aarch64-unknown-linux-gnu
+
+            - name: Upload Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: markov-bot_aarch64
+                  path: target/aarch64-unknown-linux-gnu/release/markov-bot
