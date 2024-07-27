@@ -3,9 +3,13 @@ use rusqlite::Connection;
 use serenity::prelude::*;
 use std::env;
 
+mod commands;
 mod event_handler;
 mod markov_chain;
+mod options;
 mod utils;
+
+use crate::options::get_prefix_commands;
 
 #[tokio::main]
 async fn main() {
@@ -28,10 +32,11 @@ async fn main() {
         env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be defined in environment.");
 
     let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
+    let commands = get_prefix_commands();
 
     // Build the Discord client, and pass in our event handler
     let mut client = Client::builder(discord_token, intents)
-        .event_handler(event_handler::Handler {})
+        .event_handler(event_handler::Handler { commands })
         .await
         .expect("Error creating client.");
 

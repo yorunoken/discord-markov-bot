@@ -1,18 +1,21 @@
 use rand::rngs::OsRng;
-use serenity::builder::GetMessages;
 use tokio::time::Duration;
 
 use rand::Rng;
 use rusqlite::{params, Connection};
 
+use serenity::builder::GetMessages;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
 use serenity::{all::CreateMessage, async_trait};
 
+use crate::options::Command;
 use crate::utils::{generate_markov_message, get_most_popular_channel};
 
-pub struct Handler {}
+pub struct Handler {
+    pub commands: Vec<Command>,
+}
 
 #[async_trait]
 impl EventHandler for Handler {
@@ -83,6 +86,8 @@ impl EventHandler for Handler {
             return;
         }
 
+        let command_initiated = handle_command(&ctx, &msg, &self.commands).await;
+
         if msg.mentions_me(&ctx.http).await.unwrap_or(false) {
             let builder = match generate_markov_message(guild_id, msg.channel_id).await {
                 Some(s) => s,
@@ -97,15 +102,61 @@ impl EventHandler for Handler {
             return;
         }
 
-        // Only save to database if message doesn't contain bot user tag
-        let sentence = msg.content;
-        if !sentence.contains(format!("<@{}>", ctx.cache.current_user().id).as_str()) {
-            let conn = Connection::open("messages.db").expect("Unable to open database");
-            conn.execute(
+        if !command_initiated {
+            // Only save to database if message doesn't contain bot user tag
+            let sentence = msg.content;
+            if !sentence.contains(format!("<@{}>", ctx.cache.current_user().id).as_str()) {
+                let conn = Connection::open("messages.db").expect("Unable to open database");
+                conn.execute(
                 "INSERT INTO messages (content, channel_id, guild_id, message_id, author_id) VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![sentence, msg.channel_id.get(), guild_id.get(), msg.id.get(), msg.author.id.get()],
             )
             .expect("Failed to insert word into database");
+            }
         }
     }
+}
+
+const PREFIX: &str = "m.";
+
+async fn handle_command(ctx: &Context, msg: &Message, commands: &Vec<Command>) -> bool {
+    // Make sure we're dealing with humans :)
+    if msg.author.bot || msg.content.len() == 0 {
+        return false;
+    }
+
+    // Message doesn't start with the prefix, meaning it's not a command. So we return
+    if !msg.content.starts_with(PREFIX) {
+        return false;
+    }
+
+    // Get the arguments
+    let mut args: Vec<&str> = msg
+        .content
+        .strip_prefix(PREFIX)
+        .unwrap()
+        .split_whitespace()
+        .collect();
+
+    // Get the command name by removing the first arg of the args array
+    let command_input = args.remove(0);
+
+    for command in commands {
+        if command.name == command_input {
+            // Start typing
+            msg.channel_id.start_typing(&ctx.http);
+
+            // Execute command
+            if let Err(reason) = (command.exec)(&ctx, &msg, args, &command.name).await {
+                println!(
+                    "There was an error while handling command {}: {:#?}",
+                    command.name, reason
+                )
+            }
+
+            return true;
+        }
+    }
+
+    false
 }
