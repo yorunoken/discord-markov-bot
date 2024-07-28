@@ -59,7 +59,7 @@ impl EventHandler for Handler {
 
                                 // Only send a message if builder is not None
                                 if let Some(builder) =
-                                    generate_markov_message(guild_id, channel.id).await
+                                    generate_markov_message(guild_id, channel.id, None).await
                                 {
                                     if !messages_have_bot {
                                         channel.send_message(&ctx.http, builder).await.unwrap();
@@ -91,7 +91,7 @@ impl EventHandler for Handler {
         let command_initiated = handle_command(&ctx, &msg, &self.commands).await;
 
         if msg.mentions_me(&ctx.http).await.unwrap_or(false) {
-            let builder = match generate_markov_message(guild_id, msg.channel_id).await {
+            let builder = match generate_markov_message(guild_id, msg.channel_id, None).await {
                 Some(s) => s,
                 None => CreateMessage::new()
                     .content("Please wait until this channel has over 500 messages."),
