@@ -9,6 +9,7 @@ use crate::markov_chain;
 pub async fn generate_markov_message(
     guild_id: GuildId,
     channel_id: ChannelId,
+    custom_word: Option<&str>,
 ) -> Option<CreateMessage> {
     const DATABASE_MESSAGE_FETCH_LIMIT: usize = 2000;
 
@@ -47,7 +48,7 @@ pub async fn generate_markov_message(
     markov_chain.train(sentences);
 
     let max_words = rng.gen_range(1..15);
-    let content = markov_chain.generate(max_words, None);
+    let content = markov_chain.generate(max_words, custom_word);
     Some(CreateMessage::new().content(content))
 }
 
