@@ -38,9 +38,8 @@ impl Chain {
     pub fn generate(&self, word_limit: usize, custom_word: Option<&str>) -> String {
         // Initiate the random number generator
         let mut rng = rand::thread_rng();
-        let mut sentence: Vec<&str> = Vec::new();
         // Pick a random word from the chains
-        let words: Vec<&str> = match custom_word {
+        let mut sentence: Vec<&str> = match custom_word {
             Some(word) => word.split_whitespace().collect(),
             None => match self.chains.keys().choose(&mut rng) {
                 Some(word) => vec![word],
@@ -48,11 +47,7 @@ impl Chain {
             },
         };
 
-        for word in &words {
-            sentence.push(word);
-        }
-
-        let mut current_word = &words[words.len() - 1].to_string();
+        let mut current_word = &sentence[sentence.len() - 1].to_string();
 
         // Loop over the word_limit
         for _ in 0..word_limit {
@@ -66,6 +61,7 @@ impl Chain {
                 }
                 _ => break,
             }
+            sentence.push(current_word);
         }
 
         sentence.join(" ")
