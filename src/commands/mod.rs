@@ -1,2 +1,2 @@
-pub mod greg;
+pub mod generate;
 pub mod ping;
