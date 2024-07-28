@@ -33,39 +33,41 @@ impl EventHandler for Handler {
                     // Get the channel id of the most popular channel
                     let popular_channel_id = get_most_popular_channel(guild_id).await;
                     let all_channels = ctx.http.get_channels(guild_id).await.unwrap();
-                    let channel_id = all_channels
+
+                    if let Some(channel_id) = all_channels
                         .iter()
                         .find(|channel| channel.id.get() == popular_channel_id)
                         .map(|channel| channel.id)
-                        .unwrap();
+                    {
+                        // Fetch the channel
+                        let channel = ctx.http.get_channel(channel_id).await.unwrap();
 
-                    // Fetch the channel
-                    let channel = ctx.http.get_channel(channel_id).await.unwrap();
+                        match channel.guild() {
+                            Some(channel) => {
+                                let messages = channel
+                                    .messages(&ctx.http, GetMessages::new().limit(100))
+                                    .await
+                                    .unwrap();
 
-                    match channel.guild() {
-                        Some(channel) => {
-                            let messages = channel
-                                .messages(&ctx.http, GetMessages::new().limit(100))
-                                .await
-                                .unwrap();
+                                let mut messages_have_bot = false;
+                                for message in messages {
+                                    if message.author.id.get() == ctx.cache.current_user().id.get()
+                                    {
+                                        messages_have_bot = true;
+                                    }
+                                }
 
-                            let mut messages_have_bot = false;
-                            for message in messages {
-                                if message.author.id.get() == ctx.cache.current_user().id.get() {
-                                    messages_have_bot = true;
+                                // Only send a message if builder is not None
+                                if let Some(builder) =
+                                    generate_markov_message(guild_id, channel.id).await
+                                {
+                                    if !messages_have_bot {
+                                        channel.send_message(&ctx.http, builder).await.unwrap();
+                                    }
                                 }
                             }
-
-                            // Only send a message if builder is not None
-                            if let Some(builder) =
-                                generate_markov_message(guild_id, channel.id).await
-                            {
-                                if !messages_have_bot {
-                                    channel.send_message(&ctx.http, builder).await.unwrap();
-                                }
-                            }
+                            None => {}
                         }
-                        None => {}
                     }
                 }
 
