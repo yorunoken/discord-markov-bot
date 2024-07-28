@@ -35,29 +35,33 @@ impl Chain {
         }
     }
 
-    pub fn generate(&self, word_limit: usize) -> String {
+    pub fn generate(&self, word_limit: usize, custom_word: Option<&str>) -> String {
         // Initiate the random number generator
         let mut rng = rand::thread_rng();
-        let mut sentence = Vec::new();
         // Pick a random word from the chains
-        let mut current_word = match self.chains.keys().choose(&mut rng) {
-            Some(word) => word.to_string(),
-            None => return String::new(),
+        let mut sentence: Vec<&str> = match custom_word {
+            Some(word) => word.split_whitespace().collect(),
+            None => match self.chains.keys().choose(&mut rng) {
+                Some(word) => vec![word],
+                None => return String::new(),
+            },
         };
+
+        let mut current_word = &sentence[sentence.len() - 1].to_string();
 
         // Loop over the word_limit
         for _ in 0..word_limit {
-            sentence.push(current_word.clone());
-            let next_words = self.chains.get(&current_word);
+            let next_words = self.chains.get(current_word);
             match next_words {
                 Some(words) if !words.is_empty() => {
                     current_word = match words.choose(&mut rng) {
-                        Some(word) => word.clone(),
+                        Some(word) => word,
                         None => break,
                     };
                 }
                 _ => break,
             }
+            sentence.push(current_word);
         }
 
         sentence.join(" ")
