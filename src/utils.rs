@@ -47,7 +47,7 @@ pub async fn generate_markov_message(
     markov_chain.train(sentences);
 
     let max_words = rng.gen_range(1..15);
-    let content = markov_chain.generate(max_words);
+    let content = markov_chain.generate(max_words, None);
     Some(CreateMessage::new().content(content))
 }
 
