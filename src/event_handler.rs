@@ -144,12 +144,19 @@ async fn handle_command(ctx: &Context, msg: &Message, commands: &Vec<Command>) -
     let command_input = args.remove(0);
 
     for command in commands {
-        if command.name == command_input {
+        if command.name == command_input || command.aliases.contains(&command_input.into()) {
+            let matched_alias = match command.name == command_input {
+                true => None,
+                false => Some(command_input),
+            };
+
             // Start typing
             msg.channel_id.start_typing(&ctx.http);
 
             // Execute command
-            if let Err(reason) = (command.exec)(&ctx, &msg, args, &command.name).await {
+            if let Err(reason) =
+                (command.exec)(&ctx, &msg, args, &command.name, matched_alias).await
+            {
                 println!(
                     "There was an error while handling command {}: {:#?}",
                     command.name, reason

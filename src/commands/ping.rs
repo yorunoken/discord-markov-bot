@@ -11,6 +11,7 @@ pub async fn execute(
     msg: &Message,
     _args: Vec<&str>,
     _command_name: &String,
+    _command_alias: Option<&str>,
 ) -> Result<(), Error> {
     let timer_start = Instant::now();
 
