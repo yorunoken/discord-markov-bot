@@ -3,7 +3,7 @@ use serenity::model::channel::Message;
 use serenity::prelude::*;
 use serenity::Error;
 
-use crate::commands::ping;
+use crate::commands::{greg, ping};
 
 type CommandFn = for<'a> fn(
     &'a Context,     // Command context, `ctx`
@@ -33,7 +33,7 @@ pub fn get_prefix_commands() -> Vec<Command> {
             name: String::from("greg"),
             aliases: vec![String::from("g")],
             exec: |ctx, msg, args, command_name, command_alias| {
-                Box::pin(ping::execute(ctx, msg, args, command_name, command_alias))
+                Box::pin(greg::execute(ctx, msg, args, command_name, command_alias))
             },
         },
     ]
