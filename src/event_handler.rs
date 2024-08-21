@@ -11,7 +11,9 @@ use serenity::prelude::*;
 use serenity::{all::CreateMessage, async_trait};
 
 use crate::options::Command;
-use crate::utils::{generate_markov_message, get_most_popular_channel};
+use crate::utils::{
+    change_bot_profile, generate_markov_message, get_most_popular_channel, get_random_profile,
+};
 
 pub struct Handler {
     pub commands: Vec<Command>,
@@ -22,6 +24,9 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, bot: Ready) {
         println!("Bot has started as {}", bot.user.name);
 
+        let http = ctx.http.clone();
+
+        // Random message generator on loop
         let mut rng = OsRng;
         tokio::spawn(async move {
             loop {
@@ -74,6 +79,36 @@ impl EventHandler for Handler {
                 // Wait a random second from 300 to 900
                 let range = rng.gen_range(300..900);
                 tokio::time::sleep(Duration::from_secs(range)).await;
+            }
+        });
+
+        // Profile switcher
+        const HOURS_TO_WAIT: u64 = 12;
+        tokio::spawn(async move {
+            loop {
+                match get_random_profile().await {
+                    Ok(Some(profile)) => {
+                        match change_bot_profile(&http, &profile.username, &profile.avatar_link)
+                            .await
+                        {
+                            Err(err) => {
+                                eprintln!("There was an error while changing profile: {}", err);
+                            }
+                            Ok(_) => {
+                                println!("Succesfully changes profile.\n\nProfile details:\nusername: {}\navatar link: {}", profile.username, profile.avatar_link)
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        println!("No profile available");
+                    }
+                    Err(e) => {
+                        eprintln!("Error getting random profile: {}", e);
+                    }
+                }
+
+                // Wait for `HOURS_TO_WAIT` hours before switching profiles again
+                tokio::time::sleep(Duration::from_secs(60 * 60 * HOURS_TO_WAIT)).await;
             }
         });
     }
