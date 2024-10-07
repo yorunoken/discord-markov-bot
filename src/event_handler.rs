@@ -12,7 +12,7 @@ use serenity::{all::CreateMessage, async_trait};
 
 use crate::options::Command;
 use crate::utils::{
-    change_bot_profile, generate_markov_message, get_most_popular_channel, get_random_profile,
+    change_bot_profile, generate_markov_message, get_most_popular_channel, get_random_pfp,
 };
 
 pub struct Handler {
@@ -86,16 +86,14 @@ impl EventHandler for Handler {
         const HOURS_TO_WAIT: u64 = 12;
         tokio::spawn(async move {
             loop {
-                match get_random_profile().await {
-                    Ok(Some(profile)) => {
-                        match change_bot_profile(&http, &profile.username, &profile.avatar_link)
-                            .await
-                        {
+                match get_random_pfp().await {
+                    Ok(Some(avatar_link)) => {
+                        match change_bot_profile(&http, &avatar_link).await {
                             Err(err) => {
                                 eprintln!("There was an error while changing profile: {}", err);
                             }
                             Ok(_) => {
-                                println!("Succesfully changes profile.\n\nProfile details:\nusername: {}\navatar link: {}", profile.username, profile.avatar_link)
+                                println!("Succesfully changes profile.\n\nProfile details:\navatar link: {}", avatar_link)
                             }
                         }
                     }

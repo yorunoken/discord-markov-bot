@@ -76,30 +76,19 @@ pub async fn get_most_popular_channel(guild_id: GuildId) -> u64 {
 }
 
 #[derive(Deserialize, Clone)]
-pub struct Profile {
-    pub username: String,
-    pub avatar_link: String,
-}
-
-#[derive(Deserialize)]
 struct Config {
-    pub users: Vec<Profile>,
+    pub avatar_link: Vec<String>,
 }
 
-pub async fn get_random_profile(
-) -> Result<Option<Profile>, Box<dyn std::error::Error + Send + Sync>> {
+pub async fn get_random_pfp() -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
     let toml_content = fs::read_to_string("Profiles.toml").await?;
     let config: Config = toml::from_str(&toml_content)?;
 
     let mut rng = rand::thread_rng();
-    Ok(config.users.choose(&mut rng).cloned())
+    Ok(config.avatar_link.choose(&mut rng).cloned())
 }
 
-pub async fn change_bot_profile(
-    http: &Http,
-    username: &String,
-    avatar_url: &String,
-) -> Result<(), serenity::Error> {
+pub async fn change_bot_profile(http: &Http, avatar_url: &String) -> Result<(), serenity::Error> {
     let avatar_response = reqwest::get(avatar_url)
         .await
         .expect("Failed to fetch avatar");
@@ -113,7 +102,6 @@ pub async fn change_bot_profile(
     let avatar_data_uri = format!("data:image/png;base64,{}", avatar_base64);
 
     http.edit_profile(&serde_json::json!({
-        "username": username,
         "avatar": avatar_data_uri,
     }))
     .await?;
