@@ -81,7 +81,7 @@ struct Config {
 }
 
 pub async fn get_random_pfp() -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
-    let toml_content = fs::read_to_string("Profiles.toml").await?;
+    let toml_content = fs::read_to_string("Avatars.toml").await?;
     let config: Config = toml::from_str(&toml_content)?;
 
     let mut rng = rand::thread_rng();

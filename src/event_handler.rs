@@ -82,7 +82,7 @@ impl EventHandler for Handler {
             }
         });
 
-        // Profile switcher
+        // Avatar switcher
         const HOURS_TO_WAIT: u64 = 12;
         tokio::spawn(async move {
             loop {
@@ -105,7 +105,7 @@ impl EventHandler for Handler {
                     }
                 }
 
-                // Wait for `HOURS_TO_WAIT` hours before switching profiles again
+                // Wait for `HOURS_TO_WAIT` hours before switching avatars again
                 tokio::time::sleep(Duration::from_secs(60 * 60 * HOURS_TO_WAIT)).await;
             }
         });
