@@ -77,7 +77,7 @@ pub async fn get_most_popular_channel(guild_id: GuildId) -> u64 {
 
 #[derive(Deserialize, Clone)]
 struct Config {
-    pub avatar_link: Vec<String>,
+    pub avatar_links: Vec<String>,
 }
 
 pub async fn get_random_pfp() -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
@@ -85,7 +85,7 @@ pub async fn get_random_pfp() -> Result<Option<String>, Box<dyn std::error::Erro
     let config: Config = toml::from_str(&toml_content)?;
 
     let mut rng = rand::thread_rng();
-    Ok(config.avatar_link.choose(&mut rng).cloned())
+    Ok(config.avatar_links.choose(&mut rng).cloned())
 }
 
 pub async fn change_bot_profile(http: &Http, avatar_url: &String) -> Result<(), serenity::Error> {

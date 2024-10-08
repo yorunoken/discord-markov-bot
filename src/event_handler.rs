@@ -10,7 +10,7 @@ use serenity::model::gateway::Ready;
 use serenity::prelude::*;
 use serenity::{all::CreateMessage, async_trait};
 
-use crate::options::Command;
+use crate::commands::Command;
 use crate::utils::{
     change_bot_profile, generate_markov_message, get_most_popular_channel, get_random_pfp,
 };
