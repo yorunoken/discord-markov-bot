@@ -46,6 +46,13 @@ pub async fn execute(
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(10);
 
+    let min_word_length = pairs
+        .get("min_word_length")
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(0);
+
+    let selected_word = pairs.get("word").map(|s| s.to_lowercase());
+
     let member_id = match pairs.get("member") {
         Some(match_member) => match match_member.parse::<u64>() {
             Ok(member_id) => Some(member_id),
@@ -88,6 +95,17 @@ pub async fn execute(
             for word in content.split_whitespace() {
                 let word = word.to_lowercase();
 
+                if word.len() < min_word_length {
+                    continue;
+                }
+
+                if let Some(selected_word) = &selected_word {
+                    println!("selected: {} | current: {}", selected_word, word);
+                    if *selected_word != word {
+                        continue;
+                    }
+                }
+
                 if let Some(excludes) = &excludes_array {
                     if excludes.contains(&word) {
                         continue;
@@ -103,16 +121,29 @@ pub async fn execute(
             }
         }
 
-        let mut leaderboard: Vec<(String, u64, usize)> = word_counts
-            .into_iter()
-            .map(|(word, author_counts)| {
-                let (top_author, top_count) = author_counts
-                    .into_iter()
-                    .max_by_key(|&(_, count)| count)
-                    .unwrap();
-                (word, top_author, top_count)
-            })
-            .collect();
+        let mut leaderboard: Vec<(String, u64, usize)> = if let Some(selected_word) = selected_word
+        {
+            word_counts
+                .get(&selected_word)
+                .map(|author_counts| {
+                    author_counts
+                        .iter()
+                        .map(|(&author_id, &count)| (selected_word.clone(), author_id, count))
+                        .collect()
+                })
+                .unwrap_or_default()
+        } else {
+            word_counts
+                .into_iter()
+                .map(|(word, author_counts)| {
+                    let (top_author, top_count) = author_counts
+                        .into_iter()
+                        .max_by_key(|&(_, count)| count)
+                        .unwrap();
+                    (word, top_author, top_count)
+                })
+                .collect()
+        };
 
         leaderboard.sort_by_key(|&(_, _, count)| std::cmp::Reverse(count));
         leaderboard.truncate(limit);
