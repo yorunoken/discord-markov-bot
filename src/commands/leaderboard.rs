@@ -45,6 +45,10 @@ pub async fn execute(
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(10);
 
+    let prefix_list: Vec<&str> = vec![
+        "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "%", "^", "*", ",",
+    ];
+
     let embed = tokio::task::spawn_blocking(move || {
         let conn = Connection::open("messages.db").expect("Unable to open database");
 
@@ -65,11 +69,17 @@ pub async fn execute(
         for (content, author_id) in sentences {
             for word in content.split_whitespace() {
                 let word = word.to_lowercase();
+
                 if let Some(excludes) = &excludes_array {
                     if excludes.contains(&word) {
                         continue;
                     }
                 }
+
+                if prefix_list.iter().any(|&prefix| word.starts_with(prefix)) {
+                    continue;
+                }
+
                 let author_counts = word_counts.entry(word).or_insert_with(HashMap::new);
                 *author_counts.entry(author_id).or_insert(0) += 1;
             }
