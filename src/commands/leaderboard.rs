@@ -1,4 +1,5 @@
 use rusqlite::{params, Connection};
+use std::fmt::Write;
 
 use serenity::all::CreateEmbed;
 use serenity::all::CreateMessage;
@@ -45,6 +46,14 @@ pub async fn execute(
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(10);
 
+    let member_id = match pairs.get("member") {
+        Some(match_member) => match match_member.parse::<u64>() {
+            Ok(member_id) => Some(member_id),
+            Err(_) => None,
+        },
+        None => None,
+    };
+
     let prefix_list: Vec<&str> = vec![
         "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "%", "^", "*", ",",
     ];
@@ -52,12 +61,16 @@ pub async fn execute(
     let embed = tokio::task::spawn_blocking(move || {
         let conn = Connection::open("messages.db").expect("Unable to open database");
 
-        let query = "SELECT content, author_id FROM messages WHERE guild_id = ?1";
+        let mut query = String::from("SELECT content, author_id FROM messages WHERE guild_id = ?1");
 
-        let mut stmt = conn.prepare(query).unwrap();
+        if member_id.is_some() {
+            let _ = write!(query, " AND author_id = ?2");
+        }
+
+        let mut stmt = conn.prepare(&query).unwrap();
 
         let sentences_iter = stmt
-            .query_map(params![guild_id.get()], |row| {
+            .query_map(params![guild_id.get(), member_id], |row| {
                 Ok((row.get(0)?, row.get(1)?))
             })
             .unwrap();
