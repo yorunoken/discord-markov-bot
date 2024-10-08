@@ -69,11 +69,16 @@ pub async fn execute(
 
         let mut stmt = conn.prepare(&query).unwrap();
 
-        let sentences_iter = stmt
-            .query_map(params![guild_id.get(), member_id], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            })
-            .unwrap();
+        let row_mapper = |row: &rusqlite::Row| -> rusqlite::Result<(String, u64)> {
+            Ok((row.get(0)?, row.get(1)?))
+        };
+
+        let sentences_iter = if let Some(member_id) = member_id {
+            stmt.query_map(params![guild_id.get(), member_id], row_mapper)
+        } else {
+            stmt.query_map(params![guild_id.get()], row_mapper)
+        }
+        .unwrap();
 
         let sentences: Vec<(String, u64)> = sentences_iter.map(|result| result.unwrap()).collect();
 
