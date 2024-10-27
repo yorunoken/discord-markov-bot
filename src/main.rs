@@ -30,10 +30,14 @@ async fn main() {
 
     let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
     let commands = commands::commands_vecs();
+    let registered = commands::register_vecs();
 
     // Build the Discord client, and pass in our event handler
     let mut client = Client::builder(discord_token, intents)
-        .event_handler(event_handler::Handler { commands })
+        .event_handler(event_handler::Handler {
+            commands,
+            registered,
+        })
         .await
         .expect("Error creating client.");
 

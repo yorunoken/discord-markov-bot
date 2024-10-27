@@ -1,8 +1,10 @@
 pub mod generate;
+pub mod guess;
 pub mod leaderboard;
 pub mod ping;
 
 use serenity::all::CommandInteraction;
+use serenity::all::CreateCommand;
 use serenity::futures::future::BoxFuture;
 use serenity::prelude::*;
 use serenity::Error;
@@ -25,6 +27,10 @@ pub fn commands_vecs() -> Vec<Command> {
             exec: |ctx, command| Box::pin(ping::execute(ctx, command)),
         },
         Command {
+            name: "guess".into(),
+            exec: |ctx, command| Box::pin(guess::execute(ctx, command)),
+        },
+        Command {
             name: "generate".into(),
             exec: |ctx, command| Box::pin(generate::execute(ctx, command)),
         },
@@ -32,5 +38,14 @@ pub fn commands_vecs() -> Vec<Command> {
             name: "leaderboard".into(),
             exec: |ctx, command| Box::pin(leaderboard::execute(ctx, command)),
         },
+    ]
+}
+
+pub fn register_vecs() -> Vec<CreateCommand> {
+    vec![
+        ping::register(),
+        generate::register(),
+        leaderboard::register(),
+        guess::register(),
     ]
 }

@@ -1,4 +1,5 @@
 use rand::rngs::OsRng;
+use serenity::all::CreateCommand;
 use tokio::time::Duration;
 
 use rand::Rng;
@@ -12,13 +13,14 @@ use serenity::{
     async_trait,
 };
 
-use crate::commands::{self, Command};
+use crate::commands::Command;
 use crate::utils::{
     change_bot_profile, generate_markov_message, get_most_popular_channel, get_random_pfp,
 };
 
 pub struct Handler {
     pub commands: Vec<Command>,
+    pub registered: Vec<CreateCommand>,
 }
 
 #[async_trait]
@@ -26,16 +28,7 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, bot: Ready) {
         println!("Bot has started as {}", bot.user.name);
 
-        match CommandInteraction::set_global_commands(
-            &ctx.http,
-            vec![
-                commands::ping::register(),
-                commands::generate::register(),
-                commands::leaderboard::register(),
-            ],
-        )
-        .await
-        {
+        match CommandInteraction::set_global_commands(&ctx.http, self.registered.clone()).await {
             Err(e) => {
                 eprintln!("There was an error while registering commands: {}", e);
             }
