@@ -1,13 +1,9 @@
-use base64::{engine::general_purpose, Engine as _};
-use rand::seq::SliceRandom;
 use rand::Rng;
 
 use rusqlite::{params, Connection};
 
-use serde::Deserialize;
 use serenity::all::ChannelId;
-use serenity::all::{GuildId, Http};
-use tokio::fs;
+use serenity::all::GuildId;
 
 use crate::markov_chain;
 
@@ -83,9 +79,4 @@ pub async fn get_most_popular_channel(guild_id: GuildId) -> u64 {
     .unwrap();
 
     channel_id
-}
-
-#[derive(Deserialize, Clone)]
-struct Config {
-    pub avatar_links: Vec<String>,
 }
