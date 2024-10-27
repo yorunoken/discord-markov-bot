@@ -5,12 +5,14 @@ use rand::Rng;
 use rusqlite::{params, Connection};
 
 use serenity::builder::GetMessages;
-use serenity::model::channel::Message;
-use serenity::model::gateway::Ready;
+use serenity::model::{application::Interaction, channel::Message, gateway::Ready};
 use serenity::prelude::*;
-use serenity::{all::CreateMessage, async_trait};
+use serenity::{
+    all::{Command as CommandInteraction, CreateMessage},
+    async_trait,
+};
 
-use crate::commands::Command;
+use crate::commands::{self, Command};
 use crate::utils::{
     change_bot_profile, generate_markov_message, get_most_popular_channel, get_random_pfp,
 };
@@ -23,6 +25,22 @@ pub struct Handler {
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, bot: Ready) {
         println!("Bot has started as {}", bot.user.name);
+
+        match CommandInteraction::set_global_commands(
+            &ctx.http,
+            vec![
+                commands::ping::register(),
+                commands::generate::register(),
+                commands::leaderboard::register(),
+            ],
+        )
+        .await
+        {
+            Err(e) => {
+                eprintln!("There was an error while registering commands: {}", e);
+            }
+            Ok(_) => {}
+        }
 
         let http = ctx.http.clone();
 
@@ -63,11 +81,17 @@ impl EventHandler for Handler {
                                 }
 
                                 // Only send a message if builder is not None
-                                if let Some(builder) =
+                                if let Some(markov_message) =
                                     generate_markov_message(guild_id, channel.id, None).await
                                 {
                                     if !messages_have_bot {
-                                        channel.send_message(&ctx.http, builder).await.unwrap();
+                                        channel
+                                            .send_message(
+                                                &ctx.http,
+                                                CreateMessage::new().content(markov_message),
+                                            )
+                                            .await
+                                            .unwrap();
                                     }
                                 }
                             }
@@ -121,11 +145,9 @@ impl EventHandler for Handler {
             return;
         }
 
-        let command_initiated = handle_command(&ctx, &msg, &self.commands).await;
-
         if msg.mentions_me(&ctx.http).await.unwrap_or(false) {
             let builder = match generate_markov_message(guild_id, msg.channel_id, None).await {
-                Some(s) => s,
+                Some(markov_message) => CreateMessage::new().content(markov_message),
                 None => CreateMessage::new()
                     .content("Please wait until this channel has over 500 messages."),
             };
@@ -137,68 +159,30 @@ impl EventHandler for Handler {
             return;
         }
 
-        if !command_initiated {
-            // Only save to database if message doesn't contain bot user tag
-            let sentence = msg.content;
-            if !sentence.contains(format!("<@{}>", ctx.cache.current_user().id).as_str()) {
-                let conn = Connection::open("messages.db").expect("Unable to open database");
-                conn.execute(
+        let sentence = msg.content;
+        if !sentence.contains(format!("<@{}>", ctx.cache.current_user().id).as_str()) {
+            let conn = Connection::open("messages.db").expect("Unable to open database");
+            conn.execute(
                 "INSERT INTO messages (content, channel_id, guild_id, message_id, author_id) VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![sentence, msg.channel_id.get(), guild_id.get(), msg.id.get(), msg.author.id.get()],
             )
             .expect("Failed to insert word into database");
-            }
-        }
-    }
-}
-
-const PREFIX: &str = "m.";
-
-async fn handle_command(ctx: &Context, msg: &Message, commands: &Vec<Command>) -> bool {
-    // Make sure we're dealing with humans :)
-    if msg.author.bot || msg.content.len() == 0 {
-        return false;
-    }
-
-    // Message doesn't start with the prefix, meaning it's not a command. So we return
-    if !msg.content.starts_with(PREFIX) {
-        return false;
-    }
-
-    // Get the arguments
-    let mut args: Vec<&str> = msg
-        .content
-        .strip_prefix(PREFIX)
-        .unwrap()
-        .split_whitespace()
-        .collect();
-
-    // Get the command name by removing the first arg of the args array
-    let command_input = args.remove(0);
-
-    for command in commands {
-        if command.name == command_input || command.aliases.contains(&command_input.into()) {
-            let matched_alias = match command.name == command_input {
-                true => None,
-                false => Some(command_input),
-            };
-
-            // Start typing
-            msg.channel_id.start_typing(&ctx.http);
-
-            // Execute command
-            if let Err(reason) =
-                (command.exec)(&ctx, &msg, args, &command.name, matched_alias).await
-            {
-                println!(
-                    "There was an error while handling command {}: {:#?}",
-                    command.name, reason
-                )
-            }
-
-            return true;
         }
     }
 
-    false
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        if let Interaction::Command(interaction) = interaction {
+            for command in &self.commands {
+                if interaction.data.name.as_str() == command.name {
+                    // Execute command
+                    if let Err(reason) = (command.exec)(&ctx, &interaction).await {
+                        println!(
+                            "There was an error while handling command {}: {:#?}",
+                            command.name, reason
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

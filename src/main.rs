@@ -29,7 +29,7 @@ async fn main() {
         env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be defined in environment.");
 
     let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
-    let commands = commands::prefix_commads_vecs();
+    let commands = commands::commands_vecs();
 
     // Build the Discord client, and pass in our event handler
     let mut client = Client::builder(discord_token, intents)

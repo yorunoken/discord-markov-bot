@@ -1,65 +1,78 @@
 use rusqlite::{params, Connection};
+use serenity::all::{
+    CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateEmbed,
+};
+use serenity::all::{EditInteractionResponse, ResolvedValue};
 use std::fmt::Write;
 
-use serenity::all::CreateEmbed;
-use serenity::all::CreateMessage;
-use serenity::model::channel::Message;
 use serenity::prelude::*;
 use serenity::Error;
 
 use std::collections::HashMap;
 
-pub async fn execute(
-    ctx: &Context,
-    msg: &Message,
-    args: Vec<&str>,
-    _command_name: &String,
-    _command_alias: Option<&str>,
-) -> Result<(), Error> {
-    let guild_id = match msg.guild_id {
+pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), Error> {
+    let _ = command.defer(&ctx.http).await;
+
+    let guild_id = match command.guild_id {
         Some(s) => s,
         _ => return Ok(()),
     };
 
-    // Get pairs of `=`
-    let mut pairs = HashMap::new();
+    let options = &command.data.options();
 
-    for arg in args {
-        if let Some((key, value)) = arg.split_once("=") {
-            pairs.insert(key, value);
-        }
-    }
+    let member_id = options
+        .iter()
+        .find(|opt| opt.name == "user")
+        .and_then(|opt| {
+            if let ResolvedValue::User(user, _) = &opt.value {
+                Some(user.id.get())
+            } else {
+                None
+            }
+        });
 
-    let excludes_array: Option<Vec<String>> = match pairs.get("excludes") {
-        Some(value) => Some(
-            value
-                .split(",")
-                .filter(|s| !s.is_empty())
-                .map(|s| s.to_lowercase())
-                .collect(),
-        ),
-        None => None,
-    };
+    let excludes = options
+        .iter()
+        .find(|opt| opt.name == "exclude_word")
+        .and_then(|opt| {
+            if let ResolvedValue::String(s) = &opt.value {
+                Some(s.to_lowercase())
+            } else {
+                None
+            }
+        });
 
-    let limit = pairs
-        .get("limit")
-        .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(10);
+    let excludes_array: Option<Vec<String>> = excludes.map(|v| {
+        v.split(",")
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_lowercase())
+            .collect()
+    });
 
-    let min_word_length = pairs
-        .get("min_word_length")
-        .and_then(|s| s.parse::<usize>().ok())
+    let min_word_length = options
+        .iter()
+        .find(|opt| opt.name == "min_word_length")
+        .and_then(|opt| {
+            if let ResolvedValue::Integer(i) = &opt.value {
+                Some(*i as usize)
+            } else {
+                None
+            }
+        })
         .unwrap_or(0);
 
-    let selected_word = pairs.get("word").map(|s| s.to_lowercase());
+    let selected_word = options
+        .iter()
+        .find(|opt| opt.name == "word")
+        .and_then(|opt| {
+            if let ResolvedValue::String(s) = &opt.value {
+                Some(s.to_lowercase())
+            } else {
+                None
+            }
+        });
 
-    let member_id = match pairs.get("member") {
-        Some(match_member) => match match_member.parse::<u64>() {
-            Ok(member_id) => Some(member_id),
-            Err(_) => None,
-        },
-        None => None,
-    };
+    let limit = 50;
 
     let prefix_list: Vec<&str> = vec![
         "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "%", "^", "*", ",",
@@ -181,7 +194,7 @@ pub async fn execute(
 
         description = description.trim_end().to_string();
 
-        CreateMessage::new().embed(
+        EditInteractionResponse::new().embed(
             CreateEmbed::new()
                 .title(format!("Word Leaderboard for {}", guild_id))
                 .description(description),
@@ -190,6 +203,31 @@ pub async fn execute(
     .await
     .unwrap();
 
-    msg.channel_id.send_message(&ctx.http, embed).await?;
+    command.edit_response(&ctx.http, embed).await?;
     Ok(())
+}
+
+pub fn register() -> CreateCommand {
+    CreateCommand::new("leaderboard")
+        .description("Get the leaderboard of a server")
+        .add_option(CreateCommandOption::new(
+            serenity::all::CommandOptionType::User,
+            "user",
+            "Get a user's messages",
+        ))
+        .add_option(CreateCommandOption::new(
+            CommandOptionType::String,
+            "word",
+            "Get the leaderboard of a word",
+        ))
+        .add_option(CreateCommandOption::new(
+            CommandOptionType::String,
+            "exclude_word",
+            "Excludes a word, usage: `word,to,exclude`",
+        ))
+        .add_option(CreateCommandOption::new(
+            CommandOptionType::Integer,
+            "min_word_length",
+            "Minimum word length to fetch from database",
+        ))
 }

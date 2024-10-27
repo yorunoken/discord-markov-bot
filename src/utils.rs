@@ -5,7 +5,7 @@ use rand::Rng;
 use rusqlite::{params, Connection};
 
 use serde::Deserialize;
-use serenity::all::{ChannelId, CreateMessage};
+use serenity::all::ChannelId;
 use serenity::all::{GuildId, Http};
 use tokio::fs;
 
@@ -15,7 +15,7 @@ pub async fn generate_markov_message(
     guild_id: GuildId,
     channel_id: ChannelId,
     custom_word: Option<&str>,
-) -> Option<CreateMessage> {
+) -> Option<String> {
     const DATABASE_MESSAGE_FETCH_LIMIT: usize = 2000;
 
     let sentences: Vec<String> = tokio::task::spawn_blocking(move || {
@@ -64,8 +64,7 @@ pub async fn generate_markov_message(
     markov_chain.train(sentences);
 
     let max_words = rng.gen_range(1..15);
-    let content = markov_chain.generate(max_words, custom_word);
-    Some(CreateMessage::new().content(content))
+    Some(markov_chain.generate(max_words, custom_word))
 }
 
 pub async fn get_most_popular_channel(guild_id: GuildId) -> u64 {
