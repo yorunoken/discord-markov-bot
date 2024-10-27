@@ -14,9 +14,7 @@ use serenity::{
 };
 
 use crate::commands::Command;
-use crate::utils::{
-    change_bot_profile, generate_markov_message, get_most_popular_channel, get_random_pfp,
-};
+use crate::utils::{generate_markov_message, get_most_popular_channel};
 
 pub struct Handler {
     pub commands: Vec<Command>,
@@ -34,8 +32,6 @@ impl EventHandler for Handler {
             }
             Ok(_) => {}
         }
-
-        let http = ctx.http.clone();
 
         // Random message generator on loop
         let mut rng = OsRng;
@@ -98,34 +94,6 @@ impl EventHandler for Handler {
                 tokio::time::sleep(Duration::from_secs(range)).await;
             }
         });
-
-        // Avatar switcher
-        const HOURS_TO_WAIT: u64 = 12;
-        tokio::spawn(async move {
-            loop {
-                match get_random_pfp().await {
-                    Ok(Some(avatar_link)) => {
-                        match change_bot_profile(&http, &avatar_link).await {
-                            Err(err) => {
-                                eprintln!("There was an error while changing profile: {}", err);
-                            }
-                            Ok(_) => {
-                                println!("Succesfully changes profile.\n\nProfile details:\navatar link: {}", avatar_link)
-                            }
-                        }
-                    }
-                    Ok(None) => {
-                        println!("No profile available");
-                    }
-                    Err(e) => {
-                        eprintln!("Error getting random profile: {}", e);
-                    }
-                }
-
-                // Wait for `HOURS_TO_WAIT` hours before switching avatars again
-                tokio::time::sleep(Duration::from_secs(60 * 60 * HOURS_TO_WAIT)).await;
-            }
-        });
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
@@ -135,6 +103,17 @@ impl EventHandler for Handler {
         };
 
         if msg.author.bot {
+            return;
+        }
+
+        let prefix_list: Vec<&str> = vec![
+            "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "%", "^", "*", ",",
+        ];
+
+        if prefix_list
+            .iter()
+            .any(|&prefix| msg.content.starts_with(prefix))
+        {
             return;
         }
 

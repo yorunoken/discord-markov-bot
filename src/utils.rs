@@ -89,32 +89,3 @@ pub async fn get_most_popular_channel(guild_id: GuildId) -> u64 {
 struct Config {
     pub avatar_links: Vec<String>,
 }
-
-pub async fn get_random_pfp() -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
-    let toml_content = fs::read_to_string("Avatars.toml").await?;
-    let config: Config = toml::from_str(&toml_content)?;
-
-    let mut rng = rand::thread_rng();
-    Ok(config.avatar_links.choose(&mut rng).cloned())
-}
-
-pub async fn change_bot_profile(http: &Http, avatar_url: &String) -> Result<(), serenity::Error> {
-    let avatar_response = reqwest::get(avatar_url)
-        .await
-        .expect("Failed to fetch avatar");
-
-    let avatar_bytes = avatar_response
-        .bytes()
-        .await
-        .expect("Failed to read avatar bytes");
-
-    let avatar_base64 = general_purpose::STANDARD.encode(&avatar_bytes);
-    let avatar_data_uri = format!("data:image/png;base64,{}", avatar_base64);
-
-    http.edit_profile(&serde_json::json!({
-        "avatar": avatar_data_uri,
-    }))
-    .await?;
-
-    Ok(())
-}
