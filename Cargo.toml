@@ -5,13 +5,9 @@ edition = "2021"
 
 [dependencies]
 dotenv = "0.15.0"
-serenity = { git = "https://github.com/serenity-rs/serenity" }
+serenity = { git = "https://github.com/serenity-rs/serenity", features = [
+    "collector",
+] }
 rusqlite = { version = "0.32.0", features = ["bundled"] }
 rand = "0.8.5"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-regex = "1.10.5"
-serde = { version = "1.0.208", features = ["derive"] }
-toml = "0.8.19"
-reqwest = "0.12.7"
-serde_json = "1.0.125"
-base64 = "0.22.1"
