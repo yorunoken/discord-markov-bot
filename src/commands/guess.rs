@@ -178,8 +178,10 @@ impl<'a> Game<'a> {
     }
 
     pub async fn new_sentence(&mut self) -> Result<(), Error> {
+        let min_letters_amount = 30; // Minimum amount of characters in the content
+
         let (random_message, random_author) =
-            match get_random_message(&self.command.guild_id.unwrap().get()) {
+            match get_random_message(&self.command.guild_id.unwrap().get(), &min_letters_amount) {
                 Some(s) => s,
                 None => {
                     self.end_game("No message were caught, aborting game.")
@@ -226,7 +228,7 @@ impl<'a> Game<'a> {
                                     self.command
                                         .channel_id
                                         .send_message(&self.ctx.http, CreateMessage::new().content(format!(
-                                            "Skipped message, the correct answer was: {}", random_author.name
+                                            "Skipped message, the correct answer was: `{}`", random_author.name
                                         )))
                                         .await?;
 
@@ -305,7 +307,7 @@ impl<'a> Game<'a> {
     }
 }
 
-fn get_random_message(guild_id: &u64) -> Option<(String, u64)> {
+fn get_random_message(guild_id: &u64, min_letters_amount: &u64) -> Option<(String, u64)> {
     let mut conn: Option<Connection> = None;
     for i in 0..=5 {
         match Connection::open("messages.db") {
@@ -317,13 +319,26 @@ fn get_random_message(guild_id: &u64) -> Option<(String, u64)> {
         };
     }
 
+    let prefix_list: Vec<&str> = vec![
+        "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "^", "*", ",", "https", "http",
+    ];
+
+    let prefix_conditions: Vec<String> = prefix_list
+        .iter()
+        .map(|prefix| format!("content NOT LIKE '{}%'", prefix))
+        .collect();
+    let prefix_conditions_str = prefix_conditions.join(" AND ");
+
+    let query = format!(
+        "SELECT content, author_id FROM messages WHERE guild_id = ?1 AND LENGTH(content) >= ?2 AND {} ORDER BY RANDOM() LIMIT 1;",
+        prefix_conditions_str
+    );
+
     let conn = conn.expect("Failed to establish database connection after multiple attempts.");
 
-    let mut stmt = conn
-        .prepare("SELECT content, author_id FROM messages WHERE guild_id = ?1 ORDER BY RANDOM() LIMIT 1;")
-        .unwrap();
+    let mut stmt = conn.prepare(&query).unwrap();
 
-    match stmt.query_row([guild_id], |row| {
+    match stmt.query_row([guild_id, min_letters_amount], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
     }) {
         Ok((content, author_id)) => Some((content, author_id)),
