@@ -117,6 +117,14 @@ impl EventHandler for Handler {
             return;
         }
 
+        if let Some(referenced_message) = &msg.referenced_message {
+            if referenced_message.author.id == ctx.cache.current_user().id
+                && !referenced_message.embeds.is_empty()
+            {
+                return;
+            }
+        }
+
         if msg.mentions_me(&ctx.http).await.unwrap_or(false) {
             let builder = match generate_markov_message(guild_id, msg.channel_id, None).await {
                 Some(markov_message) => CreateMessage::new().content(markov_message),
