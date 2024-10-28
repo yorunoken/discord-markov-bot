@@ -5,10 +5,12 @@ use rusqlite::Connection;
 use futures::StreamExt;
 use serenity::all::{
     ButtonStyle, CommandInteraction, CreateButton, CreateCommand, CreateEmbed,
-    CreateInteractionResponse, CreateMessage, EditInteractionResponse, UserId,
+    CreateInteractionResponse, CreateMessage, EditInteractionResponse, Message, User, UserId,
 };
 use serenity::prelude::*;
 use serenity::Error;
+
+use crate::string_cmp::{gestalt_pattern_matching, levenshtein_similarity};
 
 pub fn register() -> CreateCommand {
     CreateCommand::new("guess").description("Guess who a random message belongs to.")
@@ -254,23 +256,8 @@ impl<'a> Game<'a> {
                 message_collector = message_stream.next() => {
                     match message_collector {
                         Some(message) => {
-                            let display_name = random_author.display_name();
-                            let correct_guesses = vec![random_author.name.as_str(), &display_name];
 
-                            if correct_guesses.iter().any(|&correct_guess| {
-                                correct_guess.to_lowercase() == message.content.to_lowercase()
-                            }) {
-                                self.command
-                                    .channel_id
-                                    .send_message(
-                                        &self.ctx.http,
-                                        CreateMessage::new().content(format!(
-                                            "Correct, <@{}>! The message was sent by `{}`",
-                                            message.author.id.get(),
-                                            random_author.name
-                                        )),
-                                    )
-                                    .await?;
+                            if self.check_msg_content(message, &random_author).await? {
                                 break;
                             }
                         }
@@ -304,6 +291,52 @@ impl<'a> Game<'a> {
         CreateEmbed::new()
             .title("Random message guesser")
             .description(content)
+    }
+
+    async fn check_msg_content(
+        &self,
+        message: Message,
+        random_author: &User,
+    ) -> Result<bool, Error> {
+        let display_name = random_author.display_name();
+        let correct_guesses = vec![random_author.name.as_str(), &display_name];
+
+        if correct_guesses.iter().any(|&correct_guess| {
+            self.matches(
+                &correct_guess.to_lowercase(),
+                &message.content.to_lowercase(),
+            )
+            .is_some()
+        }) {
+            self.command
+                .channel_id
+                .send_message(
+                    &self.ctx.http,
+                    CreateMessage::new().content(format!(
+                        "Correct, <@{}>! The message was sent by `{}`",
+                        message.author.id.get(),
+                        random_author.name
+                    )),
+                )
+                .await?;
+
+            return Ok(true);
+        }
+        return Ok(false);
+    }
+
+    fn matches(&self, src: &str, content: &str) -> Option<bool> {
+        let difficulty = 0.5;
+
+        if src == content {
+            Some(true)
+        } else if levenshtein_similarity(src, content) > difficulty
+            || gestalt_pattern_matching(src, content) > difficulty + 0.1
+        {
+            Some(false)
+        } else {
+            None
+        }
     }
 }
 
