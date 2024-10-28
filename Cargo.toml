@@ -11,3 +11,4 @@ serenity = { git = "https://github.com/serenity-rs/serenity", features = [
 rusqlite = { version = "0.32.0", features = ["bundled"] }
 rand = "0.8.5"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+futures = "0.3.31"
