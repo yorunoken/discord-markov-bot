@@ -201,7 +201,7 @@ impl<'a> Game<'a> {
                     .button(
                         CreateButton::new("skip")
                             .style(ButtonStyle::Primary)
-                            .label("Skip Message"),
+                            .label("Reveal Answer"),
                     )
                     .button(
                         CreateButton::new("end")
@@ -223,6 +223,13 @@ impl<'a> Game<'a> {
                         Some(interaction) => {
                             match interaction.data.custom_id.as_str() {
                                 "skip" => {
+                                    self.command
+                                        .channel_id
+                                        .send_message(&self.ctx.http, CreateMessage::new().content(format!(
+                                            "Skipped message, the correct answer was: {}", random_author.name
+                                        )))
+                                        .await?;
+
                                     interaction
                                         .create_response(&self.ctx.http, CreateInteractionResponse::Acknowledge)
                                         .await?;
@@ -233,7 +240,6 @@ impl<'a> Game<'a> {
                                         .create_response(&self.ctx.http, CreateInteractionResponse::Acknowledge)
                                         .await?;
                                     self.end_game("Game ended by user.").await?;
-                                    self.game_ended = true;
                                     return Ok(());
                                 }
                                 _ => {}
@@ -242,6 +248,7 @@ impl<'a> Game<'a> {
                         None => {}
                     }
                 }
+
                 message_collector = message_stream.next() => {
                     match message_collector {
                         Some(message) => {
@@ -268,7 +275,6 @@ impl<'a> Game<'a> {
                         None => {
                             self.end_game("Time's up! Nobody guessed correctly.")
                                 .await?;
-                            self.game_ended = true;
                             return Ok(());
                         }
                     }
