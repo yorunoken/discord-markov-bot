@@ -1,9 +1,7 @@
 use rand::Rng;
 
 use rusqlite::{params, Connection};
-
-use serenity::all::ChannelId;
-use serenity::all::GuildId;
+use serenity::all::{ChannelId, GuildId};
 
 use crate::markov_chain;
 
