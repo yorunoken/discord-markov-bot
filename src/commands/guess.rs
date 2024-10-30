@@ -17,7 +17,7 @@ pub fn register() -> CreateCommand {
 }
 
 pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), Error> {
-    let _ = command.defer(&ctx.http).await;
+    command.defer(&ctx.http).await?;
 
     let game_stop_seconds = 180;
     let embed = CreateEmbed::new()

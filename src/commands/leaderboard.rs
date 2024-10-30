@@ -11,7 +11,7 @@ use serenity::Error;
 use std::collections::HashMap;
 
 pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), Error> {
-    let _ = command.defer(&ctx.http).await;
+    command.defer(&ctx.http).await?;
 
     let guild_id = match command.guild_id {
         Some(s) => s,
