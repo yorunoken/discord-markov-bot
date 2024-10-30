@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 
 use futures::StreamExt;
 use serenity::all::{
@@ -256,7 +256,6 @@ impl<'a> Game<'a> {
                 message_collector = message_stream.next() => {
                     match message_collector {
                         Some(message) => {
-
                             if self.check_msg_content(message, &random_author).await? {
                                 break;
                             }
@@ -320,13 +319,20 @@ impl<'a> Game<'a> {
                 )
                 .await?;
 
+            // Correct guess
+            handle_message_guess(message.author.id.get(), true);
+
             return Ok(true);
         }
+
+        // Incorrect guess
+        handle_message_guess(message.author.id.get(), false);
+
         return Ok(false);
     }
 
     fn matches(&self, src: &str, content: &str) -> Option<bool> {
-        let difficulty = 1;
+        let difficulty = 1.0;
 
         if src == content {
             Some(true)
@@ -377,4 +383,49 @@ fn get_random_message(guild_id: &u64, min_letters_amount: &u64) -> Option<(Strin
         Ok((content, author_id)) => Some((content, author_id)),
         Err(_) => None,
     }
+}
+
+fn handle_message_guess(guesser_id: u64, guessed_correctly: bool) {
+    let mut conn: Option<Connection> = None;
+    for i in 0..=5 {
+        match Connection::open("messages.db") {
+            Ok(conn_ok) => conn = Some(conn_ok),
+            Err(err) => {
+                eprintln!("Errored while opening db: {}, i: {}", err, i);
+                std::thread::sleep(std::time::Duration::from_secs(5));
+            }
+        };
+    }
+
+    let conn = conn.expect("Failed to establish database connection after multiple attempts.");
+
+    let query = "SELECT rating FROM game_ratings WHERE user_id = ?";
+    let mut stmt = conn.prepare(&query).unwrap();
+
+    let user_rating = match stmt.query_row([guesser_id.to_string()], |row| row.get::<_, f32>(0)) {
+        Ok(rating) => rating,
+        Err(_) => {
+            let initial_rating = 0.0;
+
+            conn.execute(
+                "INSERT INTO game_ratings (user_id, rating) VALUES (?, ?);",
+                params![guesser_id, initial_rating],
+            )
+            .expect("Failed to insert initial rating into database");
+
+            initial_rating
+        }
+    };
+
+    let new_rating = if guessed_correctly {
+        user_rating + 3.0
+    } else {
+        user_rating - 0.1
+    };
+
+    conn.execute(
+        "UPDATE game_ratings SET rating = ? WHERE user_id = ?",
+        params![new_rating, guesser_id],
+    )
+    .expect("Failed to update user rating in database");
 }

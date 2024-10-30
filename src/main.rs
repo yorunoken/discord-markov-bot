@@ -16,15 +16,26 @@ async fn main() {
 
     // Create the messages table if it doesn't exist
     let conn = Connection::open("messages.db").expect("Unable to open database");
-    let sql = "CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        message_id INTEGER NOT NULL,
-        author_id INTEGER NOT NULL,
-        channel_id INTEGER NOT NULL,
-        guild_id INTEGER NOT NULL,
-        content TEXT NOT NULL
-        );";
-    conn.execute(sql, []).expect("Failed to create table");
+    let sql_messages = "
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id INTEGER NOT NULL,
+            author_id INTEGER NOT NULL,
+            channel_id INTEGER NOT NULL,
+            guild_id INTEGER NOT NULL,
+            content TEXT NOT NULL
+        );
+        ";
+    let sql_game_ratings = "
+        CREATE TABLE IF NOT EXISTS game_ratings (
+            user_id TEXT PRIMARY KEY,
+            rating REAL
+        );
+        ";
+    conn.execute(sql_messages, [])
+        .expect("Failed to create messages table");
+    conn.execute(sql_game_ratings, [])
+        .expect("Failed to create game_ratings table");
 
     let discord_token =
         env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be defined in environment.");
