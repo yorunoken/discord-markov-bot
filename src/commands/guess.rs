@@ -326,7 +326,7 @@ impl<'a> Game<'a> {
     }
 
     fn matches(&self, src: &str, content: &str) -> Option<bool> {
-        let difficulty = 0.5;
+        let difficulty = 1;
 
         if src == content {
             Some(true)
