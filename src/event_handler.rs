@@ -106,17 +106,6 @@ impl EventHandler for Handler {
             return;
         }
 
-        let prefix_list: Vec<&str> = vec![
-            "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "%", "^", "*", ",",
-        ];
-
-        if prefix_list
-            .iter()
-            .any(|&prefix| msg.content.starts_with(prefix))
-        {
-            return;
-        }
-
         if let Some(referenced_message) = &msg.referenced_message {
             if referenced_message.author.id == ctx.cache.current_user().id
                 && !referenced_message.embeds.is_empty()
@@ -124,6 +113,14 @@ impl EventHandler for Handler {
                 return;
             }
         }
+
+        let prefix_list: Vec<&str> = vec![
+            "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "%", "^", "*", ",",
+        ];
+
+        let starts_with_prefix = prefix_list
+            .iter()
+            .any(|&prefix| msg.content.starts_with(prefix));
 
         if msg.mentions_me(&ctx.http).await.unwrap_or(false) {
             let builder = match generate_markov_message(guild_id, msg.channel_id, None).await {
@@ -139,8 +136,12 @@ impl EventHandler for Handler {
             return;
         }
 
-        let sentence = msg.content;
-        if !sentence.contains(format!("<@{}>", ctx.cache.current_user().id).as_str()) {
+        if !starts_with_prefix
+            && !msg
+                .content
+                .contains(format!("<@{}>", ctx.cache.current_user().id).as_str())
+        {
+            let sentence = msg.content;
             let conn = Connection::open("messages.db").expect("Unable to open database");
             conn.execute(
                 "INSERT INTO messages (content, channel_id, guild_id, message_id, author_id) VALUES (?1, ?2, ?3, ?4, ?5)",
