@@ -218,13 +218,13 @@ impl<'a> Game<'a> {
             0xFEE75C,
         );
 
-        let message = self
+        let mut message = self
             .command
             .channel_id
             .send_message(
                 &self.ctx.http,
                 CreateMessage::new()
-                    .embed(embed)
+                    .embed(embed.clone())
                     .button(
                         CreateButton::new("skip")
                             .style(ButtonStyle::Primary)
@@ -250,6 +250,23 @@ impl<'a> Game<'a> {
                         Some(interaction) => {
                             match interaction.data.custom_id.as_str() {
                                 "skip" => {
+                                    message.edit(&self.ctx.http,
+                                        serenity::all::EditMessage::new()
+                                            .embed(embed.clone())
+                                            .button(
+                                                CreateButton::new("skip")
+                                                    .style(ButtonStyle::Primary)
+                                                    .label("Reveal Answer")
+                                                    .disabled(true),
+                                            )
+                                            .button(
+                                                CreateButton::new("end")
+                                                    .style(ButtonStyle::Danger)
+                                                    .label("End Game")
+                                                    .disabled(true),
+                                            )
+                                    ).await?;
+
                                     self.command
                                         .channel_id
                                         .send_message(&self.ctx.http, CreateMessage::new().content(format!(
@@ -263,6 +280,24 @@ impl<'a> Game<'a> {
                                     break;
                                 }
                                 "end" => {
+                                    // Update the message with disabled buttons
+                                    message.edit(&self.ctx.http,
+                                        serenity::all::EditMessage::new()
+                                            .embed(embed.clone())
+                                            .button(
+                                                CreateButton::new("skip")
+                                                    .style(ButtonStyle::Primary)
+                                                    .label("Reveal Answer")
+                                                    .disabled(true),
+                                            )
+                                            .button(
+                                                CreateButton::new("end")
+                                                    .style(ButtonStyle::Danger)
+                                                    .label("End Game")
+                                                    .disabled(true),
+                                            )
+                                    ).await?;
+
                                     interaction
                                         .create_response(&self.ctx.http, CreateInteractionResponse::Acknowledge)
                                         .await?;
@@ -278,12 +313,45 @@ impl<'a> Game<'a> {
 
                 message_collector = message_stream.next() => {
                     match message_collector {
-                        Some(message) => {
-                            if self.check_msg_content(message, &random_author).await? {
+                        Some(user_message) => {
+                            if self.check_msg_content(user_message, &random_author).await? {
+                                message.edit(&self.ctx.http,
+                                    serenity::all::EditMessage::new()
+                                        .embed(embed.clone())
+                                        .button(
+                                            CreateButton::new("skip")
+                                                .style(ButtonStyle::Primary)
+                                                .label("Reveal Answer")
+                                                .disabled(true),
+                                        )
+                                        .button(
+                                            CreateButton::new("end")
+                                                .style(ButtonStyle::Danger)
+                                                .label("End Game")
+                                                .disabled(true),
+                                        )
+                                ).await?;
                                 break;
                             }
                         }
                         None => {
+                                message.edit(&self.ctx.http,
+                                    serenity::all::EditMessage::new()
+                                        .embed(embed.clone())
+                                        .button(
+                                            CreateButton::new("skip")
+                                                .style(ButtonStyle::Primary)
+                                                .label("Reveal Answer")
+                                                .disabled(true),
+                                        )
+                                        .button(
+                                            CreateButton::new("end")
+                                                .style(ButtonStyle::Danger)
+                                                .label("End Game")
+                                                .disabled(true),
+                                        )
+                                ).await?;
+
                             self.end_game("**Time's Up!**\n\nNo one guessed correctly within the time limit.")
                                 .await?;
                             return Ok(());
@@ -318,7 +386,7 @@ impl<'a> Game<'a> {
 
     async fn check_msg_content(
         &self,
-        message: Message,
+        user_message: Message,
         random_author: &User,
     ) -> Result<bool, Error> {
         let display_name = random_author.display_name();
@@ -327,7 +395,7 @@ impl<'a> Game<'a> {
         if correct_guesses.iter().any(|&correct_guess| {
             self.matches(
                 &correct_guess.to_lowercase(),
-                &message.content.to_lowercase(),
+                &user_message.content.to_lowercase(),
             )
             .is_some()
         }) {
@@ -337,21 +405,21 @@ impl<'a> Game<'a> {
                     &self.ctx.http,
                     CreateMessage::new().content(format!(
                         "**Correct!** <@{}> got it right! The message was written by `{}`",
-                        message.author.id.get(),
+                        user_message.author.id.get(),
                         random_author.name
                     )),
                 )
                 .await?;
 
             // Correct guess
-            self.handle_message_guess(message.author.id.get(), true)
+            self.handle_message_guess(user_message.author.id.get(), true)
                 .await;
 
             return Ok(true);
         }
 
         // Incorrect guess
-        self.handle_message_guess(message.author.id.get(), false)
+        self.handle_message_guess(user_message.author.id.get(), false)
             .await;
 
         return Ok(false);
