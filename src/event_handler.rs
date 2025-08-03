@@ -14,7 +14,7 @@ use serenity::{
 };
 
 use crate::commands::Command;
-use crate::utils::{generate_markov_message, get_most_popular_channel};
+use crate::utils::helpers::{generate_markov_message, get_most_popular_channel};
 
 pub struct Handler {
     pub commands: Vec<Command>,

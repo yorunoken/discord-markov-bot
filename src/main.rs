@@ -5,8 +5,6 @@ use std::env;
 
 mod commands;
 mod event_handler;
-mod markov_chain;
-mod string_cmp;
 mod utils;
 
 #[tokio::main]

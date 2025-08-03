@@ -3,8 +3,7 @@ pub mod guess;
 pub mod leaderboard;
 pub mod ping;
 
-use serenity::all::CommandInteraction;
-use serenity::all::CreateCommand;
+use serenity::all::{CommandInteraction, CreateCommand};
 use serenity::futures::future::BoxFuture;
 use serenity::prelude::*;
 use serenity::Error;

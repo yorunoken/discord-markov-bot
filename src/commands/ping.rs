@@ -1,8 +1,6 @@
 use std::time::Instant;
 
-use serenity::all::CommandInteraction;
-use serenity::all::CreateCommand;
-use serenity::all::EditInteractionResponse;
+use serenity::all::{CommandInteraction, CreateCommand, EditInteractionResponse};
 use serenity::prelude::*;
 use serenity::Error;
 

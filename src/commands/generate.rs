@@ -5,7 +5,7 @@ use serenity::all::{
 use serenity::prelude::*;
 use serenity::Error;
 
-use crate::utils::generate_markov_message;
+use crate::utils::helpers::generate_markov_message;
 
 pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), Error> {
     command.defer(&ctx.http).await?;

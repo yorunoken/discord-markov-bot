@@ -10,7 +10,7 @@ use serenity::all::{
 use serenity::prelude::*;
 use serenity::Error;
 
-use crate::string_cmp::{gestalt_pattern_matching, levenshtein_similarity};
+use crate::utils::string_cmp::{gestalt_pattern_matching, levenshtein_similarity};
 
 pub fn register() -> CreateCommand {
     CreateCommand::new("guess").description("Guess who a random message belongs to.")
@@ -193,7 +193,7 @@ impl<'a> Game<'a> {
             };
         let random_author = UserId::new(random_author).to_user(&self.ctx.http).await?;
 
-        let embed = self.create_embed(format!("Guess who said this:\n\n```{}```", random_message));
+        let embed = self.create_embed(format!("Guess who said this:\n```{}```", random_message));
 
         let message = self
             .command

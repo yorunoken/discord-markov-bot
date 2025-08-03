@@ -1,14 +1,14 @@
 use rusqlite::{params, Connection};
+
 use serenity::all::{
     CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateEmbed,
+    EditInteractionResponse, ResolvedValue,
 };
-use serenity::all::{EditInteractionResponse, ResolvedValue};
-use std::fmt::Write;
-
 use serenity::prelude::*;
 use serenity::Error;
 
 use std::collections::HashMap;
+use std::fmt::Write;
 
 pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), Error> {
     command.defer(&ctx.http).await?;

@@ -3,7 +3,7 @@ use rand::Rng;
 use rusqlite::{params, Connection};
 use serenity::all::{ChannelId, GuildId};
 
-use crate::markov_chain;
+use crate::utils::markov_chain;
 
 pub async fn generate_markov_message(
     guild_id: GuildId,
