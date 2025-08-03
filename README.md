@@ -1,73 +1,88 @@
-# discord-markov-bot
+# Discord Markov Bot
 
-`discord-markov-bot` is a Discord bot designed to give you and your friends a laugh by combining messages from different times!
+A Discord bot that generates entertaining messages using Markov chain algorithms based on your server's message history.
 
-It uses the Markov chain to generate new messages.
+## Features
 
-## Getting Started
+-   **Message Generation**: Creates new messages by analyzing patterns in your server's chat history
+-   **Message Guessing Game**: Interactive game where users guess who wrote random messages
+-   **Word Leaderboards**: Track the most frequently used words by server members
+-   **Automatic Message Generation**: Periodically posts generated messages to active channels
 
-### Installation
+## Prerequisites
 
-1. **Clone the repository:**
+-   Rust 1.81+
+-   SQLite (handled automatically)
+-   Discord Bot Token
 
-    ```sh
+## Installation
+
+1. Clone the repository:
+
+    ```bash
     git clone https://github.com/yorunoken/discord-markov-bot.git
     cd discord-markov-bot
     ```
 
-2. **Build:**
+2. Set up environment variables:
 
-    ```sh
-    cargo build
+    ```bash
+    cp .env.example .env
+    # Edit .env and add your Discord bot token
     ```
 
-
-### Environment variables
-
-1. **Update env file:**
-
-    Edit the `.env.example` and delete the `.example` off of it.
-
-    ```
-    DISCORD_TOKEN=
+3. Build the project:
+    ```bash
+    cargo build --release
     ```
 
-    The names are self-explanatory.
+## Usage
 
-### Usage
+Start the bot:
 
-To start the bot, run:
-
-```sh
-cargo run
+```bash
+cargo run --release
 ```
 
-### Compiling for aarch64
+The bot will automatically:
 
-1. **Download and install cross**
-    navigate to [cross's github repository](https://github.com/cross-rs/cross) and follow instructions
+-   Connect to Discord using your token
+-   Create a SQLite database for message storage
+-   Begin collecting messages from your server
+-   Generate and post new messages periodically
 
-2. **Use the aarch64-unknown-linux-gnu target**
-    ```sh
-    cross build -r --target aarch64-unknown-linux-gnu
-    ```
+## Commands
 
-### About
+-   `/generate [word]` - Generate a Markov chain message, optionally starting with a specific word
+-   `/guess` - Start an interactive message guessing game
+-   `/leaderboard [options]` - View word usage statistics for your server
+-   `/ping` - Check bot responsiveness
 
-**The bot will:**
+## How It Works
 
-1. Create a database for message storage
-3. Read messages from channels.
-4. Store the messages in the database.
-5. Periodically generate new messages using the Markov chain model.
-6. Post the generated messages the chat.
+1. **Message Collection**: The bot monitors server channels and stores messages in a local SQLite database
+2. **Markov Chain Training**: Messages are processed to build probability chains of word sequences
+3. **Content Generation**: New messages are created by following the learned probability patterns
+4. **Interactive Games**: Users can participate in guessing games using the collected message history
 
-**Commands:**
+## Database Schema
 
-There are no commands yet, but I'm working on them!
+The bot automatically creates and manages:
+
+-   `messages` table for storing server messages
+-   `user_ratings` table for tracking game performance
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
 
-For any questions or support, please open an issue on this repository.
+## Support
+
+For questions, issues, or feature requests, please open an issue on GitHub.
