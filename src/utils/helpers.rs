@@ -5,12 +5,16 @@ use serenity::all::{ChannelId, GuildId};
 
 use crate::utils::markov_chain;
 
+const DATABASE_MESSAGE_FETCH_LIMIT: usize = 5000;
+
 pub async fn generate_markov_message(
     guild_id: GuildId,
     channel_id: ChannelId,
     custom_word: Option<&str>,
 ) -> Option<String> {
-    const DATABASE_MESSAGE_FETCH_LIMIT: usize = 2000;
+    let prefix_list: Vec<&str> = vec![
+        "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "%", "^", "*", ",",
+    ];
 
     let sentences: Vec<String> = tokio::task::spawn_blocking(move || {
         let mut conn: Option<Connection> = None;
@@ -26,10 +30,9 @@ pub async fn generate_markov_message(
 
         let conn = conn.expect("Failed to establish database connection after multiple attempts.");
 
+        let query_str = &format!("SELECT content FROM messages WHERE guild_id = ?1 AND channel_id = ?2 AND content NOT REGEXP '({})' ORDER BY RANDOM() LIMIT ?3;", prefix_list.join("|"));
         let mut stmt = conn
-            .prepare(
-                "SELECT content FROM messages WHERE guild_id = ?1 AND channel_id = ?2 ORDER BY RANDOM() LIMIT ?3;",
-            )
+            .prepare(query_str)
             .unwrap();
 
         let sentences_iter = stmt
@@ -58,7 +61,8 @@ pub async fn generate_markov_message(
     markov_chain.train(sentences);
 
     let max_words = rng.gen_range(1..15);
-    Some(markov_chain.generate(max_words, custom_word))
+    let generated_sentence = markov_chain.generate(max_words, custom_word);
+    Some(generated_sentence)
 }
 
 pub async fn get_most_popular_channel(guild_id: GuildId) -> u64 {
