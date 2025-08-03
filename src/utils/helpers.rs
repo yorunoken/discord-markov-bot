@@ -12,9 +12,15 @@ pub async fn generate_markov_message(
     channel_id: ChannelId,
     custom_word: Option<&str>,
 ) -> Option<String> {
-    let prefix_list: Vec<&str> = vec![
-        "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "%", "^", "*", ",",
+    let blacklist_prefixes = [
+        "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "^", "*", ",", "https", "http",
     ];
+
+    let prefix_conditions: Vec<String> = blacklist_prefixes
+        .iter()
+        .map(|prefix| format!("content NOT LIKE '{}%'", prefix))
+        .collect();
+    let prefix_conditions_str = prefix_conditions.join(" AND ");
 
     let sentences: Vec<String> = tokio::task::spawn_blocking(move || {
         let mut conn: Option<Connection> = None;
@@ -30,7 +36,7 @@ pub async fn generate_markov_message(
 
         let conn = conn.expect("Failed to establish database connection after multiple attempts.");
 
-        let query_str = &format!("SELECT content FROM messages WHERE guild_id = ?1 AND channel_id = ?2 AND content NOT REGEXP '({})' ORDER BY RANDOM() LIMIT ?3;", prefix_list.join("|"));
+        let query_str = &format!("SELECT content FROM messages WHERE guild_id = ?1 AND channel_id = ?2 AND {} ORDER BY RAND() LIMIT ?3;", prefix_conditions_str);
         let mut stmt = conn
             .prepare(query_str)
             .unwrap();
