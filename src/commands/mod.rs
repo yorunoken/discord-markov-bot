@@ -7,10 +7,14 @@ use serenity::all::{CommandInteraction, CreateCommand};
 use serenity::futures::future::BoxFuture;
 use serenity::prelude::*;
 use serenity::Error;
+use std::sync::Arc;
+
+use crate::database::Database;
 
 type CommandFn = for<'a> fn(
     &'a Context,            // Command context, `ctx`
     &'a CommandInteraction, // Command interaction, `command`
+    Arc<Database>,          // Database connection
 ) -> BoxFuture<'a, Result<(), Error>>;
 
 #[derive(Debug)]
@@ -23,19 +27,19 @@ pub fn commands_vecs() -> Vec<Command> {
     vec![
         Command {
             name: "ping".into(),
-            exec: |ctx, command| Box::pin(ping::execute(ctx, command)),
+            exec: |ctx, command, _db| Box::pin(ping::execute(ctx, command)),
         },
         Command {
             name: "guess".into(),
-            exec: |ctx, command| Box::pin(guess::execute(ctx, command)),
+            exec: |ctx, command, db| Box::pin(guess::execute(ctx, command, db)),
         },
         Command {
             name: "generate".into(),
-            exec: |ctx, command| Box::pin(generate::execute(ctx, command)),
+            exec: |ctx, command, db| Box::pin(generate::execute(ctx, command, db)),
         },
         Command {
             name: "leaderboard".into(),
-            exec: |ctx, command| Box::pin(leaderboard::execute(ctx, command)),
+            exec: |ctx, command, db| Box::pin(leaderboard::execute(ctx, command, db)),
         },
     ]
 }

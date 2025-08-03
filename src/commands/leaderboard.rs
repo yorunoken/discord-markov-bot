@@ -1,16 +1,20 @@
-use rusqlite::{params, Connection};
-
 use serenity::all::{
     CommandInteraction, CommandOptionType, CreateCommand, CreateCommandOption, CreateEmbed,
     EditInteractionResponse, ResolvedValue,
 };
 use serenity::prelude::*;
 use serenity::Error;
+use std::sync::Arc;
 
 use std::collections::HashMap;
-use std::fmt::Write;
 
-pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), Error> {
+use crate::database::Database;
+
+pub async fn execute(
+    ctx: &Context,
+    command: &CommandInteraction,
+    database: Arc<Database>,
+) -> Result<(), Error> {
     command.defer(&ctx.http).await?;
 
     let guild_id = match command.guild_id {
@@ -78,40 +82,17 @@ pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), 
         "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "%", "^", "*", ",",
     ];
 
-    let embed = tokio::task::spawn_blocking(move || {
-        let mut conn: Option<Connection> = None;
-        for i in 0..=5 {
-            match Connection::open("messages.db") {
-                Ok(conn_ok) => conn = Some(conn_ok),
-                Err(err) => {
-                    eprintln!("Errored while opening db: {}, i: {}", err, i);
-                    std::thread::sleep(std::time::Duration::from_secs(5));
-                }
-            };
-        }
-
-        let conn = conn.expect("Failed to establish database connection after multiple attempts.");
-
-        let mut query = String::from("SELECT content, author_id FROM messages WHERE guild_id = ?1");
-
-        if member_id.is_some() {
-            let _ = write!(query, " AND author_id = ?2");
-        }
-
-        let mut stmt = conn.prepare(&query).unwrap();
-
-        let row_mapper = |row: &rusqlite::Row| -> rusqlite::Result<(String, u64)> {
-            Ok((row.get(0)?, row.get(1)?))
+    let embed = {
+        let sentences = match database
+            .get_messages_for_leaderboard(guild_id.get(), member_id)
+            .await
+        {
+            Ok(sentences) => sentences,
+            Err(e) => {
+                eprintln!("Failed to fetch messages for leaderboard: {}", e);
+                return Ok(());
+            }
         };
-
-        let sentences_iter = if let Some(member_id) = member_id {
-            stmt.query_map(params![guild_id.get(), member_id], row_mapper)
-        } else {
-            stmt.query_map(params![guild_id.get()], row_mapper)
-        }
-        .unwrap();
-
-        let sentences: Vec<(String, u64)> = sentences_iter.map(|result| result.unwrap()).collect();
 
         let mut word_counts: HashMap<String, HashMap<u64, usize>> = HashMap::new();
 
@@ -124,7 +105,6 @@ pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), 
                 }
 
                 if let Some(selected_word) = &selected_word {
-                    println!("selected: {} | current: {}", selected_word, word);
                     if *selected_word != word {
                         continue;
                     }
@@ -177,11 +157,11 @@ pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), 
 
         for (index, (word, author_id, count)) in leaderboard.iter().enumerate() {
             let entry = format!(
-                "{index}. **{word}**: {word_count} (by <@{author}>)\n",
-                index = index + 1,
-                word = word,
-                word_count = count,
-                author = author_id
+                "**{}**. `{}`  —  {} uses by <@{}>\n",
+                index + 1,
+                word,
+                count,
+                author_id
             );
 
             if description.len() + entry.len() > MAX_DESCRIPTION_LENGTH {
@@ -196,12 +176,15 @@ pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), 
 
         EditInteractionResponse::new().embed(
             CreateEmbed::new()
-                .title(format!("Word Leaderboard for {}", guild_id))
-                .description(description),
+                .title("Word Usage Leaderboard")
+                .description(format!("**Server:** {}\n\n{}", guild_id, description))
+                .color(0x5865F2)
+                .footer(serenity::all::CreateEmbedFooter::new(format!(
+                    "Showing top {} entries",
+                    leaderboard.len()
+                ))),
         )
-    })
-    .await
-    .unwrap();
+    };
 
     command.edit_response(&ctx.http, embed).await?;
     Ok(())

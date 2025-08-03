@@ -1,6 +1,5 @@
+use std::sync::Arc;
 use std::time::Duration;
-
-use rusqlite::{params, Connection};
 
 use futures::StreamExt;
 use serenity::all::{
@@ -10,25 +9,32 @@ use serenity::all::{
 use serenity::prelude::*;
 use serenity::Error;
 
+use crate::database::Database;
 use crate::utils::string_cmp::{gestalt_pattern_matching, levenshtein_similarity};
 
 pub fn register() -> CreateCommand {
     CreateCommand::new("guess").description("Guess who a random message belongs to.")
 }
 
-pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), Error> {
+pub async fn execute(
+    ctx: &Context,
+    command: &CommandInteraction,
+    database: Arc<Database>,
+) -> Result<(), Error> {
     command.defer(&ctx.http).await?;
 
     let game_stop_seconds = 180;
     let embed = CreateEmbed::new()
-        .title("Random message guesser")
+        .title("Message Guesser")
         .description(format!(
-            "Welcome to message guesser! Bot picks a random message, you guess who sent it.\n\
-            Use nickname, username, or ID to guess.\n\
-            Game stops after {stop_minutes} minutes of no correct guesses.\n\
-            Good luck!",
-            stop_minutes = game_stop_seconds / 60
-        ));
+            "**How to play:**\n\
+            • Bot picks a random message from this server\n\
+            • Guess who wrote it using their nickname, username, or user ID\n\
+            • Game automatically ends after {} minutes of inactivity\n\n\
+            Ready to test your memory?",
+            game_stop_seconds / 60
+        ))
+        .color(0x5865F2);
 
     let message = command
         .edit_response(
@@ -56,8 +62,9 @@ pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), 
         Some(x) => x,
         None => {
             let embed = CreateEmbed::new()
-                .title("Random message guesser")
-                .description("Game cancelled (Timed out)");
+                .title("Message Guesser")
+                .description("**Game Cancelled**\n\nNo response received within 60 seconds.")
+                .color(0xED4245);
 
             command
                 .edit_response(
@@ -89,12 +96,13 @@ pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), 
 
     match interaction.data.custom_id.as_str() {
         "start" => {
-            start_game(ctx, command).await?;
+            start_game(ctx, command, database).await?;
         }
         "cancel" => {
             let embed = CreateEmbed::new()
-                .title("Random message guesser")
-                .description("Game cancelled (Manual cancellation)");
+                .title("Message Guesser")
+                .description("**Game Cancelled**\n\nThe game has been cancelled by user request.")
+                .color(0xED4245);
 
             command
                 .edit_response(
@@ -122,10 +130,15 @@ pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), 
     Ok(())
 }
 
-async fn start_game(ctx: &Context, command: &CommandInteraction) -> Result<(), Error> {
+async fn start_game(
+    ctx: &Context,
+    command: &CommandInteraction,
+    database: Arc<Database>,
+) -> Result<(), Error> {
     let embed = CreateEmbed::new()
-        .title("Random message guesser")
-        .description("Game started!");
+        .title("Message Guesser")
+        .description("**Game Started!**\n\nPreparing your first message...")
+        .color(0x57F287);
     command
         .edit_response(
             &ctx.http,
@@ -146,7 +159,7 @@ async fn start_game(ctx: &Context, command: &CommandInteraction) -> Result<(), E
         )
         .await?;
 
-    let mut game = Game::new(ctx, command);
+    let mut game = Game::new(ctx, command, database);
     game.start_game().await?;
 
     Ok(())
@@ -155,14 +168,16 @@ async fn start_game(ctx: &Context, command: &CommandInteraction) -> Result<(), E
 struct Game<'a> {
     pub ctx: &'a Context,
     pub command: &'a CommandInteraction,
+    pub database: Arc<Database>,
     pub game_ended: bool,
 }
 
 impl<'a> Game<'a> {
-    pub fn new(ctx: &'a Context, command: &'a CommandInteraction) -> Self {
+    pub fn new(ctx: &'a Context, command: &'a CommandInteraction, database: Arc<Database>) -> Self {
         Self {
             ctx,
             command,
+            database,
             game_ended: false,
         }
     }
@@ -182,18 +197,26 @@ impl<'a> Game<'a> {
     pub async fn new_sentence(&mut self) -> Result<(), Error> {
         let min_letters_amount = 30; // Minimum amount of characters in the content
 
-        let (random_message, random_author) =
-            match get_random_message(&self.command.guild_id.unwrap().get(), &min_letters_amount) {
-                Some(s) => s,
-                None => {
-                    self.end_game("No message were caught, aborting game.")
-                        .await?;
-                    return Ok(());
-                }
-            };
+        let (random_message, random_author) = match self
+            .get_random_message(&self.command.guild_id.unwrap().get(), &min_letters_amount)
+            .await
+        {
+            Some(s) => s,
+            None => {
+                self.end_game("**Game Ended**\n\nNo messages found that meet the requirements.")
+                    .await?;
+                return Ok(());
+            }
+        };
         let random_author = UserId::new(random_author).to_user(&self.ctx.http).await?;
 
-        let embed = self.create_embed(format!("Guess who said this:\n```{}```", random_message));
+        let embed = self.create_embed_with_color(
+            format!(
+                "**Can you guess who wrote this message?**\n\n```\n{}\n```",
+                random_message
+            ),
+            0xFEE75C,
+        );
 
         let message = self
             .command
@@ -230,7 +253,7 @@ impl<'a> Game<'a> {
                                     self.command
                                         .channel_id
                                         .send_message(&self.ctx.http, CreateMessage::new().content(format!(
-                                            "Skipped message, the correct answer was: `{}`", random_author.name
+                                            "**Answer Revealed:** The message was written by `{}`", random_author.name
                                         )))
                                         .await?;
 
@@ -243,7 +266,7 @@ impl<'a> Game<'a> {
                                     interaction
                                         .create_response(&self.ctx.http, CreateInteractionResponse::Acknowledge)
                                         .await?;
-                                    self.end_game("Game ended by user.").await?;
+                                    self.end_game("**Game Ended**\n\nThe game has been ended by user request.").await?;
                                     return Ok(());
                                 }
                                 _ => {}
@@ -261,7 +284,7 @@ impl<'a> Game<'a> {
                             }
                         }
                         None => {
-                            self.end_game("Time's up! Nobody guessed correctly.")
+                            self.end_game("**Time's Up!**\n\nNo one guessed correctly within the time limit.")
                                 .await?;
                             return Ok(());
                         }
@@ -274,7 +297,7 @@ impl<'a> Game<'a> {
     }
 
     async fn end_game(&mut self, reason: impl Into<String>) -> Result<(), Error> {
-        let embed = self.create_embed(reason);
+        let embed = self.create_embed_with_color(reason, 0xED4245);
 
         self.command
             .channel_id
@@ -286,10 +309,11 @@ impl<'a> Game<'a> {
         Ok(())
     }
 
-    fn create_embed(&self, content: impl Into<String>) -> CreateEmbed {
+    fn create_embed_with_color(&self, content: impl Into<String>, color: u32) -> CreateEmbed {
         CreateEmbed::new()
-            .title("Random message guesser")
+            .title("Message Guesser")
             .description(content)
+            .color(color)
     }
 
     async fn check_msg_content(
@@ -312,7 +336,7 @@ impl<'a> Game<'a> {
                 .send_message(
                     &self.ctx.http,
                     CreateMessage::new().content(format!(
-                        "Correct, <@{}>! The message was sent by `{}`",
+                        "**Correct!** <@{}> got it right! The message was written by `{}`",
                         message.author.id.get(),
                         random_author.name
                     )),
@@ -320,17 +344,18 @@ impl<'a> Game<'a> {
                 .await?;
 
             // Correct guess
-            handle_message_guess(message.author.id.get(), true);
+            self.handle_message_guess(message.author.id.get(), true)
+                .await;
 
             return Ok(true);
         }
 
         // Incorrect guess
-        handle_message_guess(message.author.id.get(), false);
+        self.handle_message_guess(message.author.id.get(), false)
+            .await;
 
         return Ok(false);
     }
-
     fn matches(&self, src: &str, content: &str) -> Option<bool> {
         let difficulty = 1.0;
 
@@ -344,88 +369,62 @@ impl<'a> Game<'a> {
             None
         }
     }
-}
 
-fn get_random_message(guild_id: &u64, min_letters_amount: &u64) -> Option<(String, u64)> {
-    let mut conn: Option<Connection> = None;
-    for i in 0..=5 {
-        match Connection::open("messages.db") {
-            Ok(conn_ok) => conn = Some(conn_ok),
-            Err(err) => {
-                eprintln!("Errored while opening db: {}, i: {}", err, i);
-                std::thread::sleep(std::time::Duration::from_secs(5));
+    async fn get_random_message(
+        &self,
+        guild_id: &u64,
+        min_letters_amount: &u64,
+    ) -> Option<(String, u64)> {
+        let prefix_list: Vec<&str> = vec![
+            "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "^", "*", ",", "https", "http",
+        ];
+
+        match self
+            .database
+            .get_random_message(*guild_id, *min_letters_amount, &prefix_list)
+            .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                eprintln!("Failed to get random message: {}", e);
+                None
             }
-        };
-    }
-
-    let prefix_list: Vec<&str> = vec![
-        "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "^", "*", ",", "https", "http",
-    ];
-
-    let prefix_conditions: Vec<String> = prefix_list
-        .iter()
-        .map(|prefix| format!("content NOT LIKE '{}%'", prefix))
-        .collect();
-    let prefix_conditions_str = prefix_conditions.join(" AND ");
-
-    let query = format!(
-        "SELECT content, author_id FROM messages WHERE guild_id = ?1 AND LENGTH(content) >= ?2 AND {} ORDER BY RANDOM() LIMIT 1;",
-        prefix_conditions_str
-    );
-
-    let conn = conn.expect("Failed to establish database connection after multiple attempts.");
-
-    let mut stmt = conn.prepare(&query).unwrap();
-
-    match stmt.query_row([guild_id, min_letters_amount], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
-    }) {
-        Ok((content, author_id)) => Some((content, author_id)),
-        Err(_) => None,
-    }
-}
-
-fn handle_message_guess(guesser_id: u64, guessed_correctly: bool) {
-    let mut conn: Option<Connection> = None;
-    for i in 0..=5 {
-        match Connection::open("messages.db") {
-            Ok(conn_ok) => conn = Some(conn_ok),
-            Err(err) => {
-                eprintln!("Errored while opening db: {}, i: {}", err, i);
-                std::thread::sleep(std::time::Duration::from_secs(5));
-            }
-        };
-    }
-
-    let conn = conn.expect("Failed to establish database connection after multiple attempts.");
-
-    let query = "SELECT rating FROM game_ratings WHERE user_id = ?";
-    let mut stmt = conn.prepare(&query).unwrap();
-
-    let user_rating = match stmt.query_row([guesser_id.to_string()], |row| row.get::<_, f32>(0)) {
-        Ok(rating) => rating,
-        Err(_) => {
-            let initial_rating = 0.0;
-
-            conn.execute(
-                "INSERT INTO game_ratings (user_id, rating) VALUES (?, ?);",
-                params![guesser_id, initial_rating],
-            )
-            .expect("Failed to insert initial rating into database");
-
-            initial_rating
         }
-    };
+    }
 
-    let new_rating = if guessed_correctly {
-        user_rating + 3.0
-    } else {
-        user_rating - 0.1
-    };
+    async fn handle_message_guess(&self, guesser_id: u64, guessed_correctly: bool) {
+        let user_rating = match self.database.get_user_rating(guesser_id).await {
+            Ok(Some(rating)) => rating,
+            Ok(None) => {
+                let initial_rating = 0.0;
+                if let Err(e) = self
+                    .database
+                    .insert_initial_rating(guesser_id, initial_rating)
+                    .await
+                {
+                    eprintln!("Failed to insert initial rating: {}", e);
+                    return;
+                }
+                initial_rating
+            }
+            Err(e) => {
+                eprintln!("Failed to get user rating: {}", e);
+                return;
+            }
+        };
 
-    conn.execute(
-        "UPDATE game_ratings SET rating = ? WHERE user_id = ?",
-        params![new_rating, guesser_id],
-    )
-    .expect("Failed to update user rating in database");
+        let new_rating = if guessed_correctly {
+            user_rating + 3.0
+        } else {
+            user_rating - 0.1
+        };
+
+        if let Err(e) = self
+            .database
+            .update_user_rating(guesser_id, new_rating)
+            .await
+        {
+            eprintln!("Failed to update user rating: {}", e);
+        }
+    }
 }

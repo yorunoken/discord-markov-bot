@@ -4,10 +4,12 @@ use serenity::all::{
 };
 use serenity::prelude::*;
 use serenity::Error;
+use std::sync::Arc;
 
+use crate::database::Database;
 use crate::utils::helpers::generate_markov_message;
 
-pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), Error> {
+pub async fn execute(ctx: &Context, command: &CommandInteraction, database: Arc<Database>) -> Result<(), Error> {
     command.defer(&ctx.http).await?;
 
     let guild_id = match command.guild_id {
@@ -28,7 +30,7 @@ pub async fn execute(ctx: &Context, command: &CommandInteraction) -> Result<(), 
             }
         });
 
-    let builder = match generate_markov_message(guild_id, command.channel_id, word).await {
+    let builder = match generate_markov_message(guild_id, command.channel_id, word, database).await {
         Some(markov_message) => EditInteractionResponse::new().content(markov_message),
         None => EditInteractionResponse::new()
             .content("Please wait until this channel has over 500 messages."),

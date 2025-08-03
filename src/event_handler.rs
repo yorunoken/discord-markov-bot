@@ -1,9 +1,9 @@
 use rand::rngs::OsRng;
 use serenity::all::CreateCommand;
+use std::sync::Arc;
 use tokio::time::Duration;
 
 use rand::Rng;
-use rusqlite::{params, Connection};
 
 use serenity::builder::GetMessages;
 use serenity::model::{application::Interaction, channel::Message, gateway::Ready};
@@ -14,11 +14,13 @@ use serenity::{
 };
 
 use crate::commands::Command;
+use crate::database::Database;
 use crate::utils::helpers::{generate_markov_message, get_most_popular_channel};
 
 pub struct Handler {
     pub commands: Vec<Command>,
     pub registered: Vec<CreateCommand>,
+    pub database: Arc<Database>,
 }
 
 #[async_trait]
@@ -35,6 +37,7 @@ impl EventHandler for Handler {
 
         // Random message generator on loop
         let mut rng = OsRng;
+        let database_clone = self.database.clone();
         tokio::spawn(async move {
             loop {
                 // Fetch vector of guilds the bot is in.
@@ -43,7 +46,8 @@ impl EventHandler for Handler {
                 // Loop over the guild ids
                 for guild_id in guild_ids {
                     // Get the channel id of the most popular channel
-                    let popular_channel_id = get_most_popular_channel(guild_id).await;
+                    let popular_channel_id =
+                        get_most_popular_channel(guild_id, database_clone.clone()).await;
                     let all_channels = ctx.http.get_channels(guild_id).await.unwrap();
 
                     if let Some(channel_id) = all_channels
@@ -70,8 +74,13 @@ impl EventHandler for Handler {
                                 }
 
                                 // Only send a message if builder is not None
-                                if let Some(markov_message) =
-                                    generate_markov_message(guild_id, channel.id, None).await
+                                if let Some(markov_message) = generate_markov_message(
+                                    guild_id,
+                                    channel.id,
+                                    None,
+                                    database_clone.clone(),
+                                )
+                                .await
                                 {
                                     if !messages_have_bot {
                                         channel
@@ -102,12 +111,19 @@ impl EventHandler for Handler {
             _ => return,
         };
 
-        let conn = Connection::open("messages.db").expect("Unable to open database");
-        conn.execute(
-                "INSERT INTO messages (content, channel_id, guild_id, message_id, author_id) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![&msg.content, msg.channel_id.get(), guild_id.get(), msg.id.get(), msg.author.id.get()],
+        if let Err(e) = self
+            .database
+            .insert_message(
+                msg.id.get(),
+                msg.author.id.get(),
+                msg.channel_id.get(),
+                guild_id.get(),
+                &msg.content,
             )
-            .expect("Failed to insert word into database");
+            .await
+        {
+            eprintln!("Failed to insert message into database: {}", e);
+        }
 
         if msg.author.bot {
             return;
@@ -122,7 +138,14 @@ impl EventHandler for Handler {
         }
 
         if msg.mentions_me(&ctx.http).await.unwrap_or(false) {
-            let builder = match generate_markov_message(guild_id, msg.channel_id, None).await {
+            let builder = match generate_markov_message(
+                guild_id,
+                msg.channel_id,
+                None,
+                self.database.clone(),
+            )
+            .await
+            {
                 Some(markov_message) => CreateMessage::new().content(markov_message),
                 None => CreateMessage::new()
                     .content("Please wait until this channel has over 500 messages."),
@@ -141,7 +164,9 @@ impl EventHandler for Handler {
             for command in &self.commands {
                 if interaction.data.name.as_str() == command.name {
                     // Execute command
-                    if let Err(reason) = (command.exec)(&ctx, &interaction).await {
+                    if let Err(reason) =
+                        (command.exec)(&ctx, &interaction, self.database.clone()).await
+                    {
                         println!(
                             "There was an error while handling command {}: {:#?}",
                             command.name, reason

@@ -1,8 +1,9 @@
 use rand::Rng;
+use std::sync::Arc;
 
-use rusqlite::{params, Connection};
 use serenity::all::{ChannelId, GuildId};
 
+use crate::database::Database;
 use crate::utils::markov_chain;
 
 const DATABASE_MESSAGE_FETCH_LIMIT: usize = 5000;
@@ -11,51 +12,27 @@ pub async fn generate_markov_message(
     guild_id: GuildId,
     channel_id: ChannelId,
     custom_word: Option<&str>,
+    database: Arc<Database>,
 ) -> Option<String> {
     let blacklist_prefixes = [
         "$", "&", "!", ".", "m.", ">", "<", "[", "]", "@", "#", "^", "*", ",", "https", "http",
     ];
 
-    let prefix_conditions: Vec<String> = blacklist_prefixes
-        .iter()
-        .map(|prefix| format!("content NOT LIKE '{}%'", prefix))
-        .collect();
-    let prefix_conditions_str = prefix_conditions.join(" AND ");
-
-    let sentences: Vec<String> = tokio::task::spawn_blocking(move || {
-        let mut conn: Option<Connection> = None;
-        for i in 0..=5 {
-            match Connection::open("messages.db") {
-                Ok(conn_ok) => conn = Some(conn_ok),
-                Err(err) => {
-                    eprintln!("Errored while opening db: {}, i: {}", err, i);
-                    std::thread::sleep(std::time::Duration::from_secs(5));
-                }
-            };
+    let sentences = match database
+        .get_messages_for_markov(
+            guild_id.get(),
+            channel_id.get(),
+            &blacklist_prefixes,
+            DATABASE_MESSAGE_FETCH_LIMIT,
+        )
+        .await
+    {
+        Ok(sentences) => sentences,
+        Err(e) => {
+            eprintln!("Failed to fetch messages for markov chain: {}", e);
+            return None;
         }
-
-        let conn = conn.expect("Failed to establish database connection after multiple attempts.");
-
-        let query_str = &format!("SELECT content FROM messages WHERE guild_id = ?1 AND channel_id = ?2 AND {} ORDER BY RAND() LIMIT ?3;", prefix_conditions_str);
-        let mut stmt = conn
-            .prepare(query_str)
-            .unwrap();
-
-        let sentences_iter = stmt
-            .query_map(
-                params![
-                    guild_id.get(),
-                    channel_id.get(),
-                    DATABASE_MESSAGE_FETCH_LIMIT
-                ],
-                |row| row.get(0),
-            )
-            .unwrap();
-
-        sentences_iter.map(|result| result.unwrap()).collect()
-    })
-    .await
-    .unwrap();
+    };
 
     if sentences.len() < 500 {
         return None;
@@ -71,20 +48,12 @@ pub async fn generate_markov_message(
     Some(generated_sentence)
 }
 
-pub async fn get_most_popular_channel(guild_id: GuildId) -> u64 {
-    let channel_id: u64 = tokio::task::spawn_blocking(move || {
-        let conn = Connection::open("messages.db").expect("Unable to open database");
-
-        let mut stmt = conn
-            .prepare("SELECT channel_id FROM messages WHERE guild_id = ?1 GROUP BY channel_id ORDER BY COUNT(*) DESC LIMIT 1;")
-            .unwrap();
-
-        let channel_id_result: u64 = stmt.query_row(params![guild_id.get()], |row| row.get(0)).unwrap_or(0);
-
-        channel_id_result
-    })
-    .await
-    .unwrap();
-
-    channel_id
+pub async fn get_most_popular_channel(guild_id: GuildId, database: Arc<Database>) -> u64 {
+    match database.get_most_popular_channel(guild_id.get()).await {
+        Ok(channel_id) => channel_id,
+        Err(e) => {
+            eprintln!("Failed to get most popular channel: {}", e);
+            0
+        }
+    }
 }
